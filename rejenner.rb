@@ -19,3 +19,7 @@ module Rejenner
     Rejenner.new(fileName).rejenerate
   end
 end
+
+if ARGV.length > 0
+  Rejenner.rejenerate(ARGV[0])
+end
