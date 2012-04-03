@@ -10,12 +10,36 @@ module Rejenner
       @lines = []
     end
     
-    def addLine(line)
-      @lines << line
+    def hasContent?
+      return @lines.length > 0
     end
     
-    def forceClose
+    def process
+    end
+
+    def addLine(line)
+      @lines << line
+      return line
+    end
+    
+    def forceClose(reason)
       # do nothing, OK to force it to close
+    end
+    
+    def closeCommentInput
+        raise ParseException("End comment for input region found, but no input is active")
+    end
+    
+    def endInputCommand(commandName, rest)
+      raise ParseException("End input command found, but no input is active")
+    end
+    
+    def startOutput(commandName, rest)
+      raise ParseException("Found output for command #{commandName.inspect}, but there is no preceding command")
+    end
+
+    def endOutput(commandName, rest)
+      raise ParseException("Found end of output for command #{commandName.inspect}, but there is no preceding command")
     end
     
   end
@@ -24,83 +48,50 @@ module Rejenner
     
     def initialize(fileName)
       @fileName = fileName
-      @commandObjects = []
-      @activeObject = nil
-      @activeInputObject = nil
-      @activeInputCommandName = nil
+      @currentCommand = NonCommandLines.new()
+      @savedCommands = [@currentCommand]
     end
     
-    def forceCloseExistingActiveObject
-      if @activeObject
-        @activeObject.forceClose
-        @activeObject = nil
-      end
+    def startInputCommand(commandName, rest, commentClosed)
+      @currentCommand.forceClose("New input for command #{commandName} started")
+      @currentCommand = RejennerCommand.getCommandClass(commandName).new()
+      @savedCommands << @currentCommand
+      @currentCommand.commentClosed = commentClosed
+      @currentCommand.name = commandName
     end
     
-    def startCommandWithName(name)
-      forceCloseExistingActiveObject
-      commandClass = RejennerCommand.getCommandClass(command)
-      @currentInputObject = commandClass.new()
-      startCommandObject(@currentInputObject)
-      @activeInputCommandName = name
-    end
-    
-    def processInputFromCommentCommand(command, rest)
-      startCommandWithName(command)
-    end
-    
-    def processSimpleCommand(command, rest)
-      startCommandWithName(command)
-      if not @currentInputObject.readsLines
-        @activeObject = nil
-      end
-    end
-    
-    def processCommentMatch(hashes, isEnd, command, rest)
-      puts "# COMMENT match: #{hashes.inspect}, #{isEnd.inspect}, #{command.inspect}, #{rest.inspect}"
+    def processCommentMatch(hashes, isEnd, command, rest, commentClosed)
+      puts "# COMMENT match: #{hashes.inspect}, #{isEnd.inspect}, #{command.inspect}, #{rest.inspect}, #{commentClosed.inspect}"
       case hashes
       when "#" 
         if isEnd
-          processEndInputCommand(command, rest)
-        elsif rest =~ /-->$/
-          processSimpleCommand(command, rest)
+          @activeCommand.endInputCommand(commandName, rest)
         else
-          processInputFromCommentCommand(command, rest)
+          startInputCommand(commandName, rest, commentClosed)
         end
       when "##"
         if isEnd
-          processEndOutputCommand(command, rest)
+          @activeCommand.endOutput(command, rest)
         else
-          processOutputFromCommentCommand(command, rest)
+          @activeCommand.startOutput(command, rest)
         end
       else
-        raiseParseException("More than 2 # characters")
+        raise ParseException.new("More than 2 # characters")
       end
     end
     
     def processEndCommentMatch
       puts "# COMMENT end"
-      if @activeObject
-        @activeObject.closeActiveCommentInput
-        @activeObject = nil
-      else
-        raise ParseException("End comment for input region found, but no input is active")
-      end
-    end
-    
-    def startCommandObject(commandObject)
-      @activeObject = commandObject
-      @commandObjects << commandObject
+      @activeCommand.closeCommentInput
     end
     
     def processNonCommandLine(line)
       puts "# LINE: #{line}"
-      if @activeObject == nil
-        @activeInputObject = nil
-        @activeInputCommandName = nil
-        startCommandObject(NonCommandLines.new())
+      lineAccepted = @activeCommand.addLine(line)
+      if not lineAccepted
+        @activeCommand = NonCommandLines.new()
+        @savedCommands << @activeCommand
       end
-      @activeObject.addLine(line)
     end
     
     def parseLine(line)
@@ -110,7 +101,11 @@ module Rejenner
         endString = rejennerCommentMatch[2]
         command = rejennerCommentMatch[3].downcase
         rest = rejennerCommentMatch[4].rstrip
-        processCommentMatch(hashes, endString == "end", command, rest)
+        closeCommentMatch = /^(.*)-->$/.match(rest)
+        commentClosed = closeCommentMatch != nil
+        if commentClosed
+          rest = closeCommentMatch[1]
+        processCommentMatch(hashes, endString == "end", command, rest, commentClosed)
       else
         endRejennerCommentMatch = /^#\s*-->\s*$/.match(line)
         if endRejennerCommentMatch
@@ -121,33 +116,113 @@ module Rejenner
       end
     end
     
-    def raiseParseException(message)
-      puts "#{@fileName}:#{@lineNumber}: #{@currentLine}"
-      puts "ERROR: #{message}"
-      raise ParseException.new(message)
-    end
-    
     def rejenerate
       puts "Opening #{@fileName} ..."
       @lineNumber = 0
-      @parseState = :html
       File.open(@fileName).each_line do |line|
         @lineNumber += 1
         @currentLine = line
         puts "line #{@lineNumber}: #{line}"
-        parseLine(line)
+        begin
+          parseLine(line)
+        rescue ParseException => pe
+          puts "#{@fileName}:#{@lineNumber}: #{@currentLine}"
+          puts "ERROR: #{message}"
+          raise pe
+        end
       end
-      case @parseState
-        when :input
-        raiseParseException("At end of file - still in input region")
-        when :output
-        raiseParseException("At end of file - still in output region")
-      end
+      @activeCommand.forceClose("End of file found")
     end
   end
   
   class RejennerCommand
     @@commandClasses = {}
+    
+    attr :commentClosed, :name
+    
+    def initialize
+      @commentClosed = false
+      @readingInput = true
+      @readingOutput = false
+      @closed = false
+      @inputLines = []
+      @outputLines = []
+      @name = nil
+    end
+    
+    def forceClose(reason)
+      if @readingInput
+        raise ParseException ("#{reason}, but still reading input from command #{name}")
+      end
+      if @readingOutput
+        raise ParseException ("#{reason}, but still reading output from command #{name}")
+      end
+    end
+    
+    def addLine(line)
+      if @readingInput
+        @inputLines << line
+        return true
+      elsif @readingOutput
+        @outputLines << line
+        return true
+      else
+        return false
+      end
+    end
+    
+    def closeCommentInput
+      if @commentClosed
+        raise ParseException("Found end of comment input, but command start comment is already closed")
+      end
+      if @readingInput
+        @readingInput = false
+      end
+    end
+    
+    def endInputCommand(commandName, rest)
+      if commandName != name
+        raise ParseException("Found end input command, but name at end #{commandName.inspect} " + 
+                             "does not match name at start #{name.inspect}")
+      end
+      if @readingInput
+        if not @commentClosed
+          raise ParseException("Found end input command, but input is inside a comment")
+        end
+        @readingInput = false
+      else
+        raise ParseException("Found end input command, but input has already ended")
+      end
+    end
+    
+    def startOutput(commandName, rest)
+      if commandName != name
+        raise ParseException("Found command output, but name #{commandName.inspect} " + 
+                             "does not match name of command #{name.inspect}")
+      end
+      if @readingInput
+        if not @commentClosed
+          raise ParseException("Found output for command #{commandName.inspect}, but we are still inside input comment")
+        end
+        @readingInput = false
+      end
+      if @readingOutput
+          raise ParseException("Found output for command #{commandName.inspect}, but we are already in the output")
+      end
+      @readingOutput = true
+    end
+    
+    def endOutput(commandName, rest)
+      if commandName != name
+        raise ParseException("Found command output end, but name #{commandName.inspect} " + 
+                             "does not match name of command #{name.inspect}")
+      end
+      if not @readingOutput
+        raise ParseException("Found output end for command #{commandName.inspect}, but output has not started")
+      end
+      @readingOutput = false
+      @closed = true
+    end
     
     def self.getCommandClass(name)
       commandClass = @@commandClasses[name]
@@ -161,32 +236,30 @@ module Rejenner
       @@commandClasses[name] = self
     end
     
-    def forceClose
-      raise ParseException("Failed to close command properly")
-    end
+    
   end
   
   class Properties<RejennerCommand
     register "properties"
     
     def initialize
+      super.initialize
       @properties = {}
     end
     
-    def addLine(line)
-      propertyLineMatch = /^\s*(\w*)\s*=(.*)$/.match(line)
-      if not propertyLineMatch
-        raise ParseException.new("Invalid property line: #{line.inspect}")
+    def process
+      for line in @inputLines do
+        propertyLineMatch = /^\s*(\w*)\s*=(.*)$/.match(line)
+        if not propertyLineMatch
+          raise ParseException.new("Invalid property line: #{line.inspect}")
+        end
+        name = propertyLineMatch[1]
+        value = propertyLineMatch[2].strip
+        @properties[name] = value
       end
-      name = propertyLineMatch[1]
-      value = propertyLineMatch[2].strip
-      @properties[name] = value
       puts "Properties = #{@properties.inspect}"
     end
 
-    def closeActiveCommentInput
-      # do nothing, OK to close active comment input
-    end
   end
   
   def self.rejenerate(fileName)
