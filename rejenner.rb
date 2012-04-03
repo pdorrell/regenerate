@@ -97,12 +97,12 @@ module Rejenner
     end
     
     def parseLine(line)
-      rejennerCommentMatch = /^<!--\s*(#+)(end\s+|)\s*(\w*)\s*(.*)$/.match(line)
+      rejennerCommentMatch = /^<!--\s*(#+)((end)\s+|)\s*(\w*)\s*(.*)$/.match(line)
       if rejennerCommentMatch
         hashes = rejennerCommentMatch[1]
-        endString = rejennerCommentMatch[2]
-        command = rejennerCommentMatch[3].downcase
-        rest = rejennerCommentMatch[4].rstrip
+        endString = rejennerCommentMatch[3]
+        command = rejennerCommentMatch[4].downcase
+        rest = rejennerCommentMatch[5].rstrip
         closeCommentMatch = /^(.*)-->$/.match(rest)
         commentClosed = closeCommentMatch != nil
         if commentClosed
@@ -277,6 +277,11 @@ end
 
 class Header<Rejenner::RejennerCommand
   register "header"
+  
+end
+
+class Footer<Rejenner::RejennerCommand
+  register "footer"
   
 end
 
