@@ -16,10 +16,10 @@ module Rejenner
     
     def process
     end
-
+    
     def addLine(line)
       @lines << line
-      return line
+      return true
     end
     
     def forceClose(reason)
@@ -27,19 +27,19 @@ module Rejenner
     end
     
     def closeCommentInput
-        raise ParseException("End comment for input region found, but no input is active")
+      raise ParseException.new("End comment for input region found, but no input is active")
     end
     
     def endInputCommand(commandName, rest)
-      raise ParseException("End input command found, but no input is active")
+      raise ParseException.new("End input command found, but no input is active")
     end
     
     def startOutput(commandName, rest)
-      raise ParseException("Found output for command #{commandName.inspect}, but there is no preceding command")
+      raise ParseException.new("Found output for command #{commandName.inspect}, but there is no preceding command")
     end
-
+    
     def endOutput(commandName, rest)
-      raise ParseException("Found end of output for command #{commandName.inspect}, but there is no preceding command")
+      raise ParseException.new("Found end of output for command #{commandName.inspect}, but there is no preceding command")
     end
     
   end
@@ -53,6 +53,7 @@ module Rejenner
     end
     
     def startInputCommand(commandName, rest, commentClosed)
+      puts "startInputCommand, commandName = #{commandName.inspect}, commentClosed = #{commentClosed}"
       @currentCommand.forceClose("New input for command #{commandName} started")
       @currentCommand = RejennerCommand.getCommandClass(commandName).new()
       @savedCommands << @currentCommand
@@ -60,20 +61,21 @@ module Rejenner
       @currentCommand.name = commandName
     end
     
-    def processCommentMatch(hashes, isEnd, command, rest, commentClosed)
-      puts "# COMMENT match: #{hashes.inspect}, #{isEnd.inspect}, #{command.inspect}, #{rest.inspect}, #{commentClosed.inspect}"
+    def processCommentMatch(hashes, isEnd, commandName, rest, commentClosed)
+      puts ("# COMMENT match: #{hashes.inspect}, #{isEnd.inspect}, #{commandName.inspect}, " + 
+            "#{rest.inspect}, #{commentClosed.inspect}")
       case hashes
       when "#" 
         if isEnd
-          @activeCommand.endInputCommand(commandName, rest)
+          @currentCommand.endInputCommand(commandName, rest)
         else
           startInputCommand(commandName, rest, commentClosed)
         end
       when "##"
         if isEnd
-          @activeCommand.endOutput(command, rest)
+          @currentCommand.endOutput(commandName, rest)
         else
-          @activeCommand.startOutput(command, rest)
+          @currentCommand.startOutput(commandName, rest)
         end
       else
         raise ParseException.new("More than 2 # characters")
@@ -82,15 +84,15 @@ module Rejenner
     
     def processEndCommentMatch
       puts "# COMMENT end"
-      @activeCommand.closeCommentInput
+      @currentCommand.closeCommentInput
     end
     
     def processNonCommandLine(line)
       puts "# LINE: #{line}"
-      lineAccepted = @activeCommand.addLine(line)
+      lineAccepted = @currentCommand.addLine(line)
       if not lineAccepted
-        @activeCommand = NonCommandLines.new()
-        @savedCommands << @activeCommand
+        @currentCommand = NonCommandLines.new()
+        @savedCommands << @currentCommand
       end
     end
     
@@ -105,6 +107,7 @@ module Rejenner
         commentClosed = closeCommentMatch != nil
         if commentClosed
           rest = closeCommentMatch[1]
+        end
         processCommentMatch(hashes, endString == "end", command, rest, commentClosed)
       else
         endRejennerCommentMatch = /^#\s*-->\s*$/.match(line)
@@ -115,7 +118,7 @@ module Rejenner
         end
       end
     end
-    
+      
     def rejenerate
       puts "Opening #{@fileName} ..."
       @lineNumber = 0
@@ -127,18 +130,18 @@ module Rejenner
           parseLine(line)
         rescue ParseException => pe
           puts "#{@fileName}:#{@lineNumber}: #{@currentLine}"
-          puts "ERROR: #{message}"
+          puts "ERROR: #{pe.message}"
           raise pe
         end
       end
-      @activeCommand.forceClose("End of file found")
+      @currentCommand.forceClose("End of file found")
     end
   end
   
   class RejennerCommand
     @@commandClasses = {}
     
-    attr :commentClosed, :name
+    attr_accessor :commentClosed, :name
     
     def initialize
       @commentClosed = false
@@ -148,6 +151,10 @@ module Rejenner
       @inputLines = []
       @outputLines = []
       @name = nil
+    end
+    
+    def hasContent?
+      true
     end
     
     def forceClose(reason)
@@ -173,7 +180,7 @@ module Rejenner
     
     def closeCommentInput
       if @commentClosed
-        raise ParseException("Found end of comment input, but command start comment is already closed")
+        raise ParseException.new("Found end of comment input, but command start comment is already closed")
       end
       if @readingInput
         @readingInput = false
@@ -182,43 +189,43 @@ module Rejenner
     
     def endInputCommand(commandName, rest)
       if commandName != name
-        raise ParseException("Found end input command, but name at end #{commandName.inspect} " + 
+        raise ParseException.new("Found end input command, but name at end #{commandName.inspect} " + 
                              "does not match name at start #{name.inspect}")
       end
       if @readingInput
         if not @commentClosed
-          raise ParseException("Found end input command, but input is inside a comment")
+          raise ParseException.new("Found end input command, but input is inside a comment")
         end
         @readingInput = false
       else
-        raise ParseException("Found end input command, but input has already ended")
+        raise ParseException.new("Found end input command, but input has already ended")
       end
     end
     
     def startOutput(commandName, rest)
       if commandName != name
-        raise ParseException("Found command output, but name #{commandName.inspect} " + 
+        raise ParseException.new("Found command output, but name #{commandName.inspect} " + 
                              "does not match name of command #{name.inspect}")
       end
       if @readingInput
         if not @commentClosed
-          raise ParseException("Found output for command #{commandName.inspect}, but we are still inside input comment")
+          raise ParseException.new("Found output for command #{commandName.inspect}, but we are still inside input comment")
         end
         @readingInput = false
       end
       if @readingOutput
-          raise ParseException("Found output for command #{commandName.inspect}, but we are already in the output")
+          raise ParseException.new ("Found output for command #{commandName.inspect}, but we are already in the output")
       end
       @readingOutput = true
     end
     
     def endOutput(commandName, rest)
       if commandName != name
-        raise ParseException("Found command output end, but name #{commandName.inspect} " + 
+        raise ParseException.new("Found command output end, but name #{commandName.inspect} " + 
                              "does not match name of command #{name.inspect}")
       end
       if not @readingOutput
-        raise ParseException("Found output end for command #{commandName.inspect}, but output has not started")
+        raise ParseException.new("Found output end for command #{commandName.inspect}, but output has not started")
       end
       @readingOutput = false
       @closed = true
@@ -229,6 +236,7 @@ module Rejenner
       if not commandClass
         raise ParseException.new("No command class named #{name.inspect}")
       end
+      puts "commandClass = #{commandClass.inspect}"
       return commandClass
     end
     
@@ -243,7 +251,7 @@ module Rejenner
     register "properties"
     
     def initialize
-      super.initialize
+      super
       @properties = {}
     end
     
@@ -270,9 +278,6 @@ end
 class Header<Rejenner::RejennerCommand
   register "header"
   
-  def readsLines
-    false
-  end
 end
 
 if ARGV.length > 0
