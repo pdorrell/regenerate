@@ -26,11 +26,11 @@ module Rejenner
       # do nothing, OK to force it to close
     end
     
-    def closeCommentInput
+    def closeCommentInput(line)
       raise ParseException.new("End comment for input region found, but no input is active")
     end
     
-    def endInputCommand(commandName, rest)
+    def endInputCommand(commandName, rest, line)
       raise ParseException.new("End input command found, but no input is active")
     end
     
@@ -52,24 +52,25 @@ module Rejenner
       @savedCommands = [@currentCommand]
     end
     
-    def startInputCommand(commandName, rest, commentClosed)
+    def startInputCommand(commandName, rest, commentClosed, line)
       puts "startInputCommand, commandName = #{commandName.inspect}, commentClosed = #{commentClosed}"
       @currentCommand.forceClose("New input for command #{commandName} started")
       @currentCommand = RejennerCommand.getCommandClass(commandName).new()
+      @currentCommand.lineBeforeInput = line
       @savedCommands << @currentCommand
       @currentCommand.commentClosed = commentClosed
       @currentCommand.name = commandName
     end
     
-    def processCommentMatch(hashes, isEnd, commandName, rest, commentClosed)
+    def processCommentMatch(hashes, isEnd, commandName, rest, commentClosed, line)
       puts ("# COMMENT match: #{hashes.inspect}, #{isEnd.inspect}, #{commandName.inspect}, " + 
             "#{rest.inspect}, #{commentClosed.inspect}")
       case hashes
       when "#" 
         if isEnd
-          @currentCommand.endInputCommand(commandName, rest)
+          @currentCommand.endInputCommand(commandName, rest, line)
         else
-          startInputCommand(commandName, rest, commentClosed)
+          startInputCommand(commandName, rest, commentClosed, line)
         end
       when "##"
         if isEnd
@@ -82,9 +83,9 @@ module Rejenner
       end
     end
     
-    def processEndCommentMatch
+    def processEndCommentMatch(line)
       puts "# COMMENT end"
-      @currentCommand.closeCommentInput
+      @currentCommand.closeCommentInput(line)
     end
     
     def processNonCommandLine(line)
@@ -108,11 +109,11 @@ module Rejenner
         if commentClosed
           rest = closeCommentMatch[1]
         end
-        processCommentMatch(hashes, endString == "end", command, rest, commentClosed)
+        processCommentMatch(hashes, endString == "end", command, rest, commentClosed, line)
       else
         endRejennerCommentMatch = /^#\s*-->\s*$/.match(line)
         if endRejennerCommentMatch
-          processEndCommentMatch
+          processEndCommentMatch(line)
         else
           processNonCommandLine(line)
         end
@@ -141,14 +142,16 @@ module Rejenner
   class RejennerCommand
     @@commandClasses = {}
     
-    attr_accessor :commentClosed, :name
+    attr_accessor :commentClosed, :name, :lineBeforeInput
     
     def initialize
       @commentClosed = false
       @readingInput = true
       @readingOutput = false
       @closed = false
+      @lineBeforeInput = nil
       @inputLines = []
+      @lineAfterInput = nil
       @outputLines = []
       @name = nil
     end
@@ -178,16 +181,19 @@ module Rejenner
       end
     end
     
-    def closeCommentInput
+    def closeCommentInput(line)
       if @commentClosed
         raise ParseException.new("Found end of comment input, but command start comment is already closed")
       end
       if @readingInput
         @readingInput = false
+        @lineAfterInput = line
+      else
+        raise ParseException.new("Found end of comment input, but not reading input")
       end
     end
     
-    def endInputCommand(commandName, rest)
+    def endInputCommand(commandName, rest, line)
       if commandName != name
         raise ParseException.new("Found end input command, but name at end #{commandName.inspect} " + 
                              "does not match name at start #{name.inspect}")
@@ -197,6 +203,7 @@ module Rejenner
           raise ParseException.new("Found end input command, but input is inside a comment")
         end
         @readingInput = false
+        @lineAfterInput = line
       else
         raise ParseException.new("Found end input command, but input has already ended")
       end
@@ -232,6 +239,7 @@ module Rejenner
     end
     
     def self.getCommandClass(name)
+      puts "getCommandClass #{name.inspect}, @@commandClasses = #{@@commandClasses.inspect}"
       commandClass = @@commandClasses[name]
       if not commandClass
         raise ParseException.new("No command class named #{name.inspect}")
@@ -241,6 +249,7 @@ module Rejenner
     end
     
     def self.register(name)
+      puts " registering #{name} => #{self.inspect}"
       @@commandClasses[name] = self
     end
     
@@ -275,16 +284,6 @@ module Rejenner
   end
 end
 
-class Header<Rejenner::RejennerCommand
-  register "header"
-  
-end
-
-class Footer<Rejenner::RejennerCommand
-  register "footer"
-  
-end
-
-if ARGV.length > 0
+if ARGV.length > 1
   Rejenner.rejenerate(ARGV[0])
 end
