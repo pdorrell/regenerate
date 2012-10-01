@@ -11,7 +11,21 @@ module Rejenner
     def output(showSource, showResult)
       text
     end
-
+  end
+  
+  class RubyCode
+    attr_reader :text
+    def initialize(text)
+      text
+    end
+    
+    def output(showSource, showResult)
+      if showSource
+        "<!-- [ruby -->\n#{text}\n<!-- ruby] -->\n"
+      else
+        ""
+      end
+    end
   end
   
   # Base class for the text variable types
