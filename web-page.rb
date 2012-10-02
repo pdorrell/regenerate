@@ -19,7 +19,7 @@ module Rejenner
       text
     end
     
-    def output(showSource, showResult)
+    def output(showSource)
       if showSource
         "<!-- [ruby -->\n#{text}\n<!-- ruby] -->\n"
       else
@@ -41,35 +41,24 @@ module Rejenner
   
   # HtmlVariable Can be both source and result
   class HtmlVariable < TextVariable
-    def output(showSource, showResult)
+    def output(showSource)
       if showSource
-        "<!-- [html/#{@varName} -->\n#{text}\n<!-- html/#{@varName}] -->\n"
+        if text = nil || text = ""
+          "<!-- [#{@varName}] -->\n"
+        else
+          "<!-- [#{@varName} -->\n#{text}\n<!-- #{@varName}] -->\n"
+        end
       else
         text
       end
     end
   end
   
-  # DerivedHtmlVariable Is always a result of other input data (the result can be discarded)
-  class DerivedHtmlVariable < TextVariable
-    def output(showSource, showResult)
-      if showResult
-        if showSource
-          "<!-- [derivedHtml/#{@varName} -->\n#{text}\n<!-- derivedHtml/#{@varName}] -->\n"
-        else
-          text
-        end
-      else
-        "<!-- [derivedHtml/#{@varName}] -->\n"
-      end
-    end
-  end
-  
   # SourceCommentVariable Is an input only
   class SourceCommentVariable
-    def output(showSource, showResult)
+    def output(showSource)
       if showSource
-          "<!-- [source/#{@varName}\n#{text}\source/#{@varName}] -->\n"
+          "<!-- [#{@varName}\n#{text}\n#{@varName}] -->\n"
       else
         ""
       end
