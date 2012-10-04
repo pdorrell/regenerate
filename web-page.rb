@@ -65,4 +65,23 @@ module Rejenner
     end
   end
   
+  class WebPage
+    attr_reader :fileName
+    
+    def initialize(fileName)
+      @fileName = fileName
+      readFileLines
+    end
+    
+    def readFileLines
+      puts "Opening #{@fileName} ..."
+      @lineNumber = 0
+      File.open(@fileName).each_line do |line|
+        @lineNumber += 1
+        @currentLine = line
+        puts "line #{@lineNumber}: #{line}"
+      end
+    end
+  end
+  
 end
