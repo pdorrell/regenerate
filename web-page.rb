@@ -65,6 +65,68 @@ module Rejenner
     end
   end
   
+  COMMENT_LINE_REGEX = /^\s*(<!--\s*|)(\[|)(@|)([_a-zA-Z][_a-zA-Z0-9]*)(\]|)(\s*-->|)?\s*$/
+  
+  class ParseException<Exception
+  end
+  
+  class ParsedRejennerCommentLine
+    
+    attr_reader :isInstanceVar, :hasCommentStart, :hasCommentEnd, :sectionStart, :sectionEnd
+    attr_reader :isEmptySection, :line
+    
+    def initialize(line, match)
+      @hasCommentStart = match[1] != ""
+      @sectionStart = match[2] != ""
+      @isInstanceVar = match[3] != ""
+      @name = match[4]
+      @sectionEnd = match[5] != ""
+      @hasCommentEnd = match[6] != ""
+      @line = line
+      @isEmptySection = @sectionStart && @sectionEnd
+    end
+    
+    def to_s
+      "#{@hasCommentStart?"<!-- ":""}#{@sectionStart?"[ ":""}#{@isInstanceVar?"@ ":""}#{@name.inspect}#{@sectionEnd?" ]":""}#{@hasCommentEnd?" -->":""}"
+    end
+    
+    def isRejennerCommentLine
+      return (@hasCommentStart || @hasCommentEnd) && (@sectionStart || @sectionEnd)
+    end
+    
+    def isRuby
+      !@isInstanceVar && @name == "ruby"
+    end
+    
+    def instanceVarName
+      return "@" + @name
+    end
+    
+    def raiseParseException(message)
+      raise ParseException.new("Error parsing line #{@line.inspect}: #{message}")
+    end
+    
+    # only call this method if isRejennerCommentLine returns true
+    def checkIsValid
+      if !@isInstanceVar and !["ruby"].include?(@name)
+        raiseParseException("Unknown section name #{@name.inspect}")
+      end
+      if @isEmptySection and (!@hasCommentStart && !@hasCommentEnd)
+        raiseParseException("Empty section, but is not a closed comment")
+      end
+      if !@sectionStart && !@hasCommentEnd
+        raiseParseException("End of section in comment start")
+      end
+      if !@sectionEnd && !@hasCommentStart
+        raiseParseException("Start of section in comment end")
+      end
+      if (@sectionStart && @sectionEnd) && isRuby
+        raiseParseException("Empty ruby section")
+      end
+    end
+    
+  end
+
   class WebPage
     attr_reader :fileName
     
@@ -73,13 +135,34 @@ module Rejenner
       readFileLines
     end
     
+    def processTextLine(line, lineNumber)
+      puts "text: #{line}"
+    end
+    
+    def processCommandLine(line, lineNumber)
+      puts "command: #{line}"
+    end
+    
+    
     def readFileLines
       puts "Opening #{@fileName} ..."
-      @lineNumber = 0
+      lineNumber = 0
       File.open(@fileName).each_line do |line|
-        @lineNumber += 1
-        @currentLine = line
-        puts "line #{@lineNumber}: #{line}"
+        line.chomp!
+        lineNumber += 1
+        #puts "line #{@lineNumber}: #{line}"
+        commentLineMatch = COMMENT_LINE_REGEX.match(line)
+        if commentLineMatch
+          parsedCommentLine = ParsedRejennerCommentLine.new(line, commentLineMatch)
+          if parsedCommentLine.isRejennerCommentLine
+            parsedCommentLine.checkIsValid
+            processCommandLine(parsedCommentLine, @lineNumber)
+          else
+            processTextLine(line, @lineNumber)
+          end
+        else
+          processTextLine(line, @lineNumber)
+        end
       end
     end
   end
