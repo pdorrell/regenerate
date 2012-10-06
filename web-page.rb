@@ -1,23 +1,58 @@
 
 module Rejenner
   
-  # A component of static text which is not assigned to any variable, and which does not change
-  class StaticHtml
+  # A component, which includes a sequence of lines which make up the text of that component
+  class PageComponent
     attr_reader :text
-    def initialize(text)
-      text
+    def initialize
+      @lines = []
+      @text = nil # if text is nil, component is not yet finished
     end
     
-    def output(showSource, showResult)
-      text
+    def processStartComment(parsedCommentLine)
+      @startName = parsedCommentLine.name
+      initializeFromStartComment(parsedCommentLine)
+      if parsedCommentLine.sectionEnd # section end in start comment line, so already finished
+        finishText
+      end
+    end
+    
+    def processEndComment(parsedCommentLine)
+      finishText
+      if parsedCommentLine.name != @startName
+        raise ParseException.new("Name #{parsedCommentLine.name.inspect} in end comment doesn't match name #{@startName.inspect} in start comment.")
+      end
+    end
+    
+    def initializeFromStartComment(parsedCommentLine)
+      # default do nothing
+    end
+    
+    def finished
+      @text != nil
+    end
+    
+    def addLine(line)
+      @lines << line
+    end
+    
+    def finishText
+      @text = @lines.join("\n") + "\n"
     end
   end
   
-  class RubyCode
-    attr_reader :text
-    def initialize(text)
+  # A component of static text which is not assigned to any variable, and which does not change
+  class StaticHtml<PageComponent
+    def output(showSource, showResult)
       text
     end
+    
+    def varName
+      nil
+    end
+  end
+  
+  class RubyCode<PageComponent
     
     def output(showSource)
       if showSource
@@ -29,18 +64,30 @@ module Rejenner
   end
   
   # Base class for the text variable types
-  class TextVariable
-    attr_reader :varName, :text
+  class TextVariable<PageComponent
+    attr_reader :varName
     
-    def initialize(varName, text)
+    def initializeFromStartComment(parsedCommentLine)
+      @varName = parsedCommentLine.instanceVarName
+    end
+    
+    def initialize(varName)
+      super
       @varName = varName
-      @text = text
     end
     
   end
   
   # HtmlVariable Can be both source and result
   class HtmlVariable < TextVariable
+    
+    def processEndComment(parsedCommentLine)
+      super(parsedCommentLine)
+      if !parsedCommentLine.hasCommentStart
+        raise ParseException.new("End comment for HTML variable does not have a comment start")
+      end
+    end
+
     def output(showSource)
       if showSource
         if text = nil || text = ""
@@ -56,6 +103,13 @@ module Rejenner
   
   # SourceCommentVariable Is an input only
   class SourceCommentVariable
+    def processEndComment(parsedCommentLine)
+      super(parsedCommentLine)
+      if parsedCommentLine.hasCommentStart
+        raise ParseException.new("End comment for comment variable has an unexpected comment start")
+      end
+    end
+
     def output(showSource)
       if showSource
           "<!-- [#{@varName}\n#{text}\n#{@varName}] -->\n"
@@ -65,7 +119,7 @@ module Rejenner
     end
   end
   
-  COMMENT_LINE_REGEX = /^\s*(<!--\s*|)(\[|)(@|)([_a-zA-Z][_a-zA-Z0-9]*)(\]|)(\s*-->|)?\s*$/
+  COMMENT_LINE_REGEX = /^\s*(<!--\s*|)(\[|)((@|)[_a-zA-Z][_a-zA-Z0-9]*)(\]|)(\s*-->|)?\s*$/
   
   class ParseException<Exception
   end
@@ -78,8 +132,8 @@ module Rejenner
     def initialize(line, match)
       @hasCommentStart = match[1] != ""
       @sectionStart = match[2] != ""
-      @isInstanceVar = match[3] != ""
-      @name = match[4]
+      @isInstanceVar = match[4] != ""
+      @name = match[3]
       @sectionEnd = match[5] != ""
       @hasCommentEnd = match[6] != ""
       @line = line
@@ -132,6 +186,8 @@ module Rejenner
     
     def initialize(fileName)
       @fileName = fileName
+      @components = []
+      @currentComponent = nil
       readFileLines
     end
     
