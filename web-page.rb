@@ -87,7 +87,7 @@ module Rejenner
     end
     
     def to_s
-      "#{@hasCommentStart?"<!-- ":""}#{@sectionStart?"[ ":""}#{@isInstanceVar?"@ ":""}#{@name.inspect}#{@sectionEnd?" ]":""}#{@hasCommentEnd?" -->":""}"
+      "#{@hasCommentStart ? "<!-- ":""}#{@sectionStart ? "[ ":""}#{@isInstanceVar ? "@ ":""}#{@name.inspect}#{@sectionEnd ? " ]":""}#{@hasCommentEnd ? " -->":""}"
     end
     
     def isRejennerCommentLine
