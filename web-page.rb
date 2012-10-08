@@ -42,7 +42,7 @@ module Rejenner
   end
   
   # A component of static text which is not assigned to any variable, and which does not change
-  class StaticHtml<PageComponent
+  class StaticHtml < PageComponent
     def output(showSource, showResult)
       text
     end
@@ -53,6 +53,10 @@ module Rejenner
   end
   
   class RubyCode<PageComponent
+    
+    def initialize
+      super
+    end
     
     def output(showSource)
       if showSource
@@ -70,12 +74,6 @@ module Rejenner
     def initializeFromStartComment(parsedCommentLine)
       @varName = parsedCommentLine.instanceVarName
     end
-    
-    def initialize(varName)
-      super
-      @varName = varName
-    end
-    
   end
   
   # HtmlVariable Can be both source and result
@@ -87,7 +85,7 @@ module Rejenner
         raise ParseException.new("End comment for HTML variable does not have a comment start")
       end
     end
-
+    
     def output(showSource)
       if showSource
         if text = nil || text = ""
@@ -101,18 +99,18 @@ module Rejenner
     end
   end
   
-  # SourceCommentVariable Is an input only
-  class SourceCommentVariable
+  # CommentVariable Is an input only
+  class CommentVariable < TextVariable
     def processEndComment(parsedCommentLine)
       super(parsedCommentLine)
       if parsedCommentLine.hasCommentStart
         raise ParseException.new("End comment for comment variable has an unexpected comment start")
       end
     end
-
+    
     def output(showSource)
       if showSource
-          "<!-- [#{@varName}\n#{text}\n#{@varName}] -->\n"
+        "<!-- [#{@varName}\n#{text}\n#{@varName}] -->\n"
       else
         ""
       end
@@ -127,7 +125,7 @@ module Rejenner
   class ParsedRejennerCommentLine
     
     attr_reader :isInstanceVar, :hasCommentStart, :hasCommentEnd, :sectionStart, :sectionEnd
-    attr_reader :isEmptySection, :line
+    attr_reader :isEmptySection, :line, :name
     
     def initialize(line, match)
       @hasCommentStart = match[1] != ""
@@ -180,7 +178,7 @@ module Rejenner
     end
     
   end
-
+  
   class WebPage
     attr_reader :fileName
     
@@ -191,14 +189,71 @@ module Rejenner
       readFileLines
     end
     
+    def startNewComponent(component, startComment = nil)
+      @currentComponent = component
+      puts "startNewComponent, @currentComponent = #{@currentComponent.inspect}"
+      @components << component
+      if startComment
+        component.processStartComment(startComment)
+      end
+    end
+    
     def processTextLine(line, lineNumber)
       puts "text: #{line}"
+      puts "@currentComponent = #{@currentComponent.inspect}"
+      if @currentComponent == nil
+        startNewComponent(StaticHtml.new)
+      end
+      puts "@currentComponent to add line = #{@currentComponent.inspect}"
+      @currentComponent.addLine(line)
     end
     
-    def processCommandLine(line, lineNumber)
-      puts "command: #{line}"
+    def processCommandLine(parsedCommandLine, lineNumber)
+      puts "command: #{parsedCommandLine}"
+      if @currentComponent && (@currentComponent.is_a? StaticHtml)
+        @currentComponent.finishText
+        @currentComponent = nil
+      end
+      if @currentComponent
+        if parsedCommandLine.sectionStart
+          raise ParseException.new("Unexpected section start #{parsedCommandLine} inside component")
+        end
+        @currentComponent.processEndComment(parsedCommandLine)
+        @currentComponent = nil
+      else
+        if !parsedCommandLine.sectionStart
+          raise ParseException.new("Unexpected section end #{parsedCommandLine}, outside of component")
+        end
+        if parsedCommandLine.isInstanceVar
+          if parsedCommandLine.hasCommentEnd
+            startNewComponent(HtmlVariable.new, parsedCommandLine)
+          else
+            startNewComponent(CommentVariable.new, parsedCommandLine)
+          end
+        else
+          if parsedCommandLine.name == "ruby"
+            startNewComponent(RubyCode.new, parsedCommandLine)
+          else
+            raise ParseException.new("Unknown section type #{parsedCommandLine.name.inspect}")
+          end
+        end
+        if @currentComponent.finished
+          @currentComponent = nil
+        end
+      end
+      
     end
     
+    def finish
+      if @currentComponent
+        if @currentComponent.is_a? StaticHtml
+          @currentComponent.finishText
+          @currentComponent = nil
+        else
+          raise ParseException.new("Unfinished last component at end of file")
+        end
+      end
+    end
     
     def readFileLines
       puts "Opening #{@fileName} ..."
@@ -206,13 +261,13 @@ module Rejenner
       File.open(@fileName).each_line do |line|
         line.chomp!
         lineNumber += 1
-        #puts "line #{@lineNumber}: #{line}"
+        puts "line #{@lineNumber}: #{line}"
         commentLineMatch = COMMENT_LINE_REGEX.match(line)
         if commentLineMatch
-          parsedCommentLine = ParsedRejennerCommentLine.new(line, commentLineMatch)
-          if parsedCommentLine.isRejennerCommentLine
-            parsedCommentLine.checkIsValid
-            processCommandLine(parsedCommentLine, @lineNumber)
+          parsedCommandLine = ParsedRejennerCommentLine.new(line, commentLineMatch)
+          if parsedCommandLine.isRejennerCommentLine
+            parsedCommandLine.checkIsValid
+            processCommandLine(parsedCommandLine, @lineNumber)
           else
             processTextLine(line, @lineNumber)
           end
@@ -220,6 +275,7 @@ module Rejenner
           processTextLine(line, @lineNumber)
         end
       end
+      finish
     end
   end
   
