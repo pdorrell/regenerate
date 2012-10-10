@@ -43,7 +43,7 @@ module Rejenner
   
   # A component of static text which is not assigned to any variable, and which does not change
   class StaticHtml < PageComponent
-    def output(showSource, showResult)
+    def output(showSource = true)
       text
     end
     
@@ -58,7 +58,7 @@ module Rejenner
       super
     end
     
-    def output(showSource)
+    def output(showSource = true)
       if showSource
         "<!-- [ruby -->\n#{text}\n<!-- ruby] -->\n"
       else
@@ -86,7 +86,7 @@ module Rejenner
       end
     end
     
-    def output(showSource)
+    def output(showSource = true)
       if showSource
         if text = nil || text = ""
           "<!-- [#{@varName}] -->\n"
@@ -108,7 +108,7 @@ module Rejenner
       end
     end
     
-    def output(showSource)
+    def output(showSource = true)
       if showSource
         "<!-- [#{@varName}\n#{text}\n#{@varName}] -->\n"
       else
@@ -151,7 +151,7 @@ module Rejenner
     end
     
     def instanceVarName
-      return "@" + @name
+      return @name
     end
     
     def raiseParseException(message)
@@ -200,11 +200,9 @@ module Rejenner
     
     def processTextLine(line, lineNumber)
       puts "text: #{line}"
-      puts "@currentComponent = #{@currentComponent.inspect}"
       if @currentComponent == nil
         startNewComponent(StaticHtml.new)
       end
-      puts "@currentComponent to add line = #{@currentComponent.inspect}"
       @currentComponent.addLine(line)
     end
     
@@ -261,7 +259,7 @@ module Rejenner
       File.open(@fileName).each_line do |line|
         line.chomp!
         lineNumber += 1
-        puts "line #{@lineNumber}: #{line}"
+        puts "line #{lineNumber}: #{line}"
         commentLineMatch = COMMENT_LINE_REGEX.match(line)
         if commentLineMatch
           parsedCommandLine = ParsedRejennerCommentLine.new(line, commentLineMatch)
@@ -276,6 +274,16 @@ module Rejenner
         end
       end
       finish
+      puts "=========================================================================="
+      display
+    end
+    
+    def display
+      puts "Output of #{@fileName}:"
+      for component in @components do
+        puts "--------------------------------------"
+        puts(component.output)
+      end
     end
   end
   
