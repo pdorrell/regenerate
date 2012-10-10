@@ -1,3 +1,4 @@
+require 'set'
 
 module Rejenner
   
@@ -186,7 +187,21 @@ module Rejenner
       @fileName = fileName
       @components = []
       @currentComponent = nil
+      @componentInstanceVariables = {}
+      @initialInstanceVariables = Set.new(instance_variables)
+      @initialInstanceVariables << :@initialInstanceVariables
       readFileLines
+    end
+    
+    def setInstanceVarValue(varName, value)
+      if @initialInstanceVariables.member? varName
+        raise Exception, "Instance variable #{varName} is a pre-existing instance variable"
+      end
+      if @componentInstanceVariables.member? varName
+        raise Exception, "Instance variable #{varName} is a already defined for a component"
+      end
+      instance_variable_set(varName, value)
+      componentInstanceVariables << varName
     end
     
     def startNewComponent(component, startComment = nil)
