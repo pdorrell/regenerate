@@ -1,4 +1,5 @@
 require 'set'
+require 'erb'
 
 module Rejenner
   
@@ -325,11 +326,15 @@ module Rejenner
     end
     
     def executeRubyComponents
-      for rubyComponent in @rubyComponents
-        rubyCode = rubyComponent.text
-        puts ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
-        puts "Executing ruby #{rubyCode.inspect} ..."
-        self.instance_eval(rubyCode, @fileName, rubyComponent.lineNumber)
+      fileDir = File.dirname(@fileName)
+      puts "Executing ruby components in directory #{fileDir} ..."
+      Dir.chdir(fileDir) do
+        for rubyComponent in @rubyComponents
+          rubyCode = rubyComponent.text
+          puts ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+          puts "Executing ruby #{rubyCode.inspect} ..."
+          self.instance_eval(rubyCode, @fileName, rubyComponent.lineNumber)
+        end
       end
     end
     
@@ -339,6 +344,16 @@ module Rejenner
       for component in @components do
         puts "--------------------------------------"
         puts(component.output)
+      end
+    end
+    
+    def erb(templateFileName)
+      @binding = binding
+      File.open(templateFileName, "r") do |input|
+        templateText = input.read
+        template = ERB.new(templateText, nil, nil)
+        template.filename = templateFileName
+        result = template.result(@binding)
       end
     end
   end
