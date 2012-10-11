@@ -45,7 +45,7 @@ module Rejenner
     end
     
     def finishText
-      @text = @lines.join("\n") + "\n"
+      @text = @lines.join("\n")
       addToParentPage
     end
   end
@@ -89,7 +89,12 @@ module Rejenner
     end
     
     def addToParentPage
+      puts "TextVariable.addToParentPage #{@varName} = #{@text.inspect}"
       @parentPage.instance_variable_set(@varName, @text)
+    end
+    
+    def textVariableValue
+      @parentPage.instance_variable_get(@varName)
     end
   end
   
@@ -105,10 +110,11 @@ module Rejenner
     
     def output(showSource = true)
       if showSource
-        if text = nil || text = ""
+        textValue = textVariableValue
+        if textValue == nil || textValue == ""
           "<!-- [#{@varName}] -->\n"
         else
-          "<!-- [#{@varName} -->\n#{text}\n<!-- #{@varName}] -->\n"
+          "<!-- [#{@varName} -->\n#{textValue}\n<!-- #{@varName}] -->\n"
         end
       else
         text
@@ -127,7 +133,7 @@ module Rejenner
     
     def output(showSource = true)
       if showSource
-        "<!-- [#{@varName}\n#{text}\n#{@varName}] -->\n"
+        "<!-- [#{@varName}\n#{textVariableValue}\n#{@varName}] -->\n"
       else
         ""
       end
@@ -311,12 +317,12 @@ module Rejenner
         end
       end
       finish
-      puts "=========================================================================="
       display
     end
     
     def display
-      puts "Output of #{@fileName}:"
+      puts "=========================================================================="
+      puts "Output of #{@fileName}"
       for component in @components do
         puts "--------------------------------------"
         puts(component.output)
