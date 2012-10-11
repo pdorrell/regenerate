@@ -63,8 +63,11 @@ module Rejenner
   
   class RubyCode<PageComponent
     
-    def initialize
-      super
+    attr_reader :lineNumber
+    
+    def initialize(lineNumber)
+      super()
+      @lineNumber = lineNumber
     end
     
     def output(showSource = true)
@@ -273,7 +276,7 @@ module Rejenner
           end
         else
           if parsedCommandLine.name == "ruby"
-            startNewComponent(RubyCode.new, parsedCommandLine)
+            startNewComponent(RubyCode.new(lineNumber+1), parsedCommandLine)
           else
             raise ParseException.new("Unknown section type #{parsedCommandLine.name.inspect}")
           end
@@ -308,16 +311,26 @@ module Rejenner
           parsedCommandLine = ParsedRejennerCommentLine.new(line, commentLineMatch)
           if parsedCommandLine.isRejennerCommentLine
             parsedCommandLine.checkIsValid
-            processCommandLine(parsedCommandLine, @lineNumber)
+            processCommandLine(parsedCommandLine, lineNumber)
           else
-            processTextLine(line, @lineNumber)
+            processTextLine(line, lineNumber)
           end
         else
-          processTextLine(line, @lineNumber)
+          processTextLine(line, lineNumber)
         end
       end
       finish
+      executeRubyComponents
       display
+    end
+    
+    def executeRubyComponents
+      for rubyComponent in @rubyComponents
+        rubyCode = rubyComponent.text
+        puts ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+        puts "Executing ruby #{rubyCode.inspect} ..."
+        self.instance_eval(rubyCode, @fileName, rubyComponent.lineNumber)
+      end
     end
     
     def display
