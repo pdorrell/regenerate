@@ -5,9 +5,12 @@ module Rejenner
   # A component, which includes a sequence of lines which make up the text of that component
   class PageComponent
     attr_reader :text
+    attr_accessor :parentPage
+    
     def initialize
       @lines = []
       @text = nil # if text is nil, component is not yet finished
+      @parentPage = nil
     end
     
     def processStartComment(parsedCommentLine)
@@ -37,8 +40,13 @@ module Rejenner
       @lines << line
     end
     
+    def addToParentPage
+      # default do nothing
+    end
+    
     def finishText
       @text = @lines.join("\n") + "\n"
+      addToParentPage
     end
   end
   
@@ -66,6 +74,10 @@ module Rejenner
         ""
       end
     end
+    
+    def addToParentPage
+      @parentPage.addRubyComponent(self)
+    end
   end
   
   # Base class for the text variable types
@@ -74,6 +86,10 @@ module Rejenner
     
     def initializeFromStartComment(parsedCommentLine)
       @varName = parsedCommentLine.instanceVarName
+    end
+    
+    def addToParentPage
+      @parentPage.instance_variable_set(@varName, @text)
     end
   end
   
@@ -190,7 +206,12 @@ module Rejenner
       @componentInstanceVariables = {}
       @initialInstanceVariables = Set.new(instance_variables)
       @initialInstanceVariables << :@initialInstanceVariables
+      @rubyComponents = []
       readFileLines
+    end
+    
+    def addRubyComponent(rubyComponent)
+      @rubyComponents << rubyComponent
     end
     
     def setInstanceVarValue(varName, value)
@@ -205,6 +226,7 @@ module Rejenner
     end
     
     def startNewComponent(component, startComment = nil)
+      component.parentPage = self
       @currentComponent = component
       puts "startNewComponent, @currentComponent = #{@currentComponent.inspect}"
       @components << component
