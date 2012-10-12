@@ -308,6 +308,23 @@ module Rejenner
       end
     end
     
+    def writeRegeneratedFile
+      backupFileName = @fileName+"~"
+      if File.exists? backupFileName
+        puts "Deleting existing backup file #{backupFileName} ..."
+        File.delete (backupFileName)
+      end
+      puts "Renaming file #{@fileName} to #{backupFileName} ..."
+      File.rename(@fileName, backupFileName)
+      puts "Outputting regenerated page to #{@fileName} ..."
+      File.open(@fileName, "w") do |f|
+        for component in @components do
+          f.write(component.output)
+        end
+      end
+      puts "Finished writing #{@fileName}"
+    end
+    
     def readFileLines
       puts "Opening #{@fileName} ..."
       lineNumber = 0
@@ -330,7 +347,8 @@ module Rejenner
       end
       finish
       executeRubyComponents
-      display
+      writeRegeneratedFile
+      #display
     end
     
     def executeRubyComponents
