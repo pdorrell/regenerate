@@ -94,11 +94,11 @@ module Rejenner
     
     def addToParentPage
       puts "TextVariable.addToParentPage #{@varName} = #{@text.inspect}"
-      @parentPage.instance_variable_set(@varName, @text)
+      @parentPage.setPageObjectInstanceVar(@varName, @text)
     end
     
     def textVariableValue
-      @parentPage.instance_variable_get(@varName)
+      @parentPage.getPageObjectInstanceVar(@varName)
     end
   end
   
@@ -214,10 +214,18 @@ module Rejenner
       @components = []
       @currentComponent = nil
       @componentInstanceVariables = {}
-      @initialInstanceVariables = Set.new(instance_variables)
-      @initialInstanceVariables << :@initialInstanceVariables
+      @pageObject = PageObject.new
+      @initialInstanceVariables = Set.new(@pageObject.instance_variables)
       @rubyComponents = []
       readFileLines
+    end
+    
+    def getPageObjectInstanceVar(varName)
+      @pageObject.instance_variable_get(varName)
+    end
+    
+    def setPageObjectInstanceVar(varName, value)
+      @pageObject.instance_variable_set(varName, value)
     end
     
     def addRubyComponent(rubyComponent)
@@ -333,7 +341,7 @@ module Rejenner
           rubyCode = rubyComponent.text
           puts ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
           puts "Executing ruby #{rubyCode.inspect} ..."
-          self.instance_eval(rubyCode, @fileName, rubyComponent.lineNumber)
+          @pageObject.instance_eval(rubyCode, @fileName, rubyComponent.lineNumber)
         end
       end
     end
@@ -346,7 +354,9 @@ module Rejenner
         puts(component.output)
       end
     end
+  end
     
+  class PageObject
     def erb(templateFileName)
       @binding = binding
       File.open(templateFileName, "r") do |input|
