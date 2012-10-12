@@ -9,7 +9,7 @@ module Rejenner
   end
 end
 
-puts "ARGV = #{ARGV.inspect}"
+#puts "ARGV = #{ARGV.inspect}"
 
 if ARGV.length >= 1
   Rejenner.rejenerate(ARGV[0])
