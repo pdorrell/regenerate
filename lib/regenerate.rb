@@ -1,6 +1,6 @@
 # A framework for static website generation which regenerates files in place.
 
-require_relative 'web-page.rb'
+require_relative 'regenerate/web-page.rb'
 
 module Regenerate
   
