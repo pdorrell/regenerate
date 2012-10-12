@@ -54,7 +54,7 @@ module Rejenner
   # A component of static text which is not assigned to any variable, and which does not change
   class StaticHtml < PageComponent
     def output(showSource = true)
-      text
+      text + "\n"
     end
     
     def varName
@@ -73,7 +73,7 @@ module Rejenner
     
     def output(showSource = true)
       if showSource
-        "<!-- [ruby -->\n#{text}\n<!-- ruby] -->\n"
+        "<!-- [ruby\n#{text}\nruby] -->\n"
       else
         ""
       end
