@@ -2,9 +2,9 @@
 
 require_relative 'web-page.rb'
 
-module Rejenner
+module Regenerate
   
-  def self.rejenerate(fileName)
+  def self.regenerate(fileName)
     WebPage.new(fileName)
   end
 end
@@ -12,5 +12,5 @@ end
 #puts "ARGV = #{ARGV.inspect}"
 
 if ARGV.length >= 1
-  Rejenner.rejenerate(ARGV[0])
+  Regenerate.regenerate(ARGV[0])
 end

@@ -1,7 +1,7 @@
 require 'set'
 require 'erb'
 
-module Rejenner
+module Regenerate
   
   # A component, which includes a sequence of lines which make up the text of that component
   class PageComponent
