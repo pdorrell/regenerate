@@ -1,0 +1,9 @@
+#!/usr/bin/env ruby
+ 
+require 'regenerate'
+
+if ARGV.length == 1
+  Regenerate.regenerate(ARGV[0])
+else
+  raise Exception, "regenerate expects exactly one argument: #{ARGV.inspect}"
+end
