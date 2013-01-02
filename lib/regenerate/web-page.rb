@@ -93,7 +93,7 @@ module Regenerate
     end
     
     def addToParentPage
-      puts "TextVariable.addToParentPage #{@varName} = #{@text.inspect}"
+      #puts "TextVariable.addToParentPage #{@varName} = #{@text.inspect}"
       @parentPage.setPageObjectInstanceVar(@varName, @text)
     end
     
@@ -246,7 +246,7 @@ module Regenerate
     def startNewComponent(component, startComment = nil)
       component.parentPage = self
       @currentComponent = component
-      puts "startNewComponent, @currentComponent = #{@currentComponent.inspect}"
+      #puts "startNewComponent, @currentComponent = #{@currentComponent.inspect}"
       @components << component
       if startComment
         component.processStartComment(startComment)
@@ -254,7 +254,7 @@ module Regenerate
     end
     
     def processTextLine(line, lineNumber)
-      puts "text: #{line}"
+      #puts "text: #{line}"
       if @currentComponent == nil
         startNewComponent(StaticHtml.new)
       end
@@ -262,7 +262,7 @@ module Regenerate
     end
     
     def processCommandLine(parsedCommandLine, lineNumber)
-      puts "command: #{parsedCommandLine}"
+      #puts "command: #{parsedCommandLine}"
       if @currentComponent && (@currentComponent.is_a? StaticHtml)
         @currentComponent.finishText
         @currentComponent = nil
@@ -331,7 +331,7 @@ module Regenerate
       File.open(@fileName).each_line do |line|
         line.chomp!
         lineNumber += 1
-        puts "line #{lineNumber}: #{line}"
+        #puts "line #{lineNumber}: #{line}"
         commentLineMatch = COMMENT_LINE_REGEX.match(line)
         if commentLineMatch
           parsedCommandLine = ParsedRejennerCommentLine.new(line, commentLineMatch)
