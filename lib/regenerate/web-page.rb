@@ -215,6 +215,8 @@ module Regenerate
       @currentComponent = nil
       @componentInstanceVariables = {}
       @pageObject = PageObject.new
+      setPageObjectInstanceVar("@fileName", @fileName)
+      setPageObjectInstanceVar("@baseFileName", File.basename(@fileName))
       @initialInstanceVariables = Set.new(@pageObject.instance_variables)
       @rubyComponents = []
       readFileLines
@@ -225,6 +227,7 @@ module Regenerate
     end
     
     def setPageObjectInstanceVar(varName, value)
+      #puts " setPageObjectInstanceVar, #{varName} = #{value.inspect}"
       @pageObject.instance_variable_set(varName, value)
     end
     
@@ -346,6 +349,10 @@ module Regenerate
         end
       end
       finish
+      #puts "Finished reading #{@fileName}."
+    end
+    
+    def regenerate
       executeRubyComponents
       writeRegeneratedFile
       #display
@@ -358,10 +365,12 @@ module Regenerate
         for rubyComponent in @rubyComponents
           rubyCode = rubyComponent.text
           puts ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
-          puts "Executing ruby #{rubyCode.inspect} ..."
+          puts "Executing ruby (line #{rubyComponent.lineNumber}) #{rubyCode.inspect} ..."
           @pageObject.instance_eval(rubyCode, @fileName, rubyComponent.lineNumber)
+          #puts "Finished executing ruby at line #{rubyComponent.lineNumber}"
         end
       end
+      #puts "Finished executing ruby components."
     end
     
     def display
@@ -384,6 +393,11 @@ module Regenerate
         result = template.result(@binding)
       end
     end
+
+    def require_relative(path)
+      require File.join(File.dirname(@fileName), path.to_str)
+    end
+
   end
   
 end

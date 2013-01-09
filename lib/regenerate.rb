@@ -2,10 +2,13 @@
 
 require 'regenerate/web-page.rb'
 
+STDOUT.sync = true
+STDERR.sync = true
+
 module Regenerate
   
   def self.regenerate(fileName)
-    WebPage.new(fileName)
+    WebPage.new(fileName).regenerate
   end
   
   def self.regenerateThisDir(globPattern = "*.html")
