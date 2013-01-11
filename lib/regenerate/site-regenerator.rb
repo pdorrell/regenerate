@@ -1,4 +1,5 @@
 require 'pathname'
+require 'fileutils'
 
 module Regenerate
   
@@ -25,6 +26,10 @@ module Regenerate
       @baseDir = File.expand_path(baseDir)
       @sourceSubDir = sourceSubDir
       @outputSubDir = outputSubDir
+      @sourceTypeSubDirs = {:source => @sourceSubDir, :output => @outputSubDir}
+      @sourceTypeDirs = {:source => File.join(@baseDir, @sourceSubDir), 
+        :output => File.join(@baseDir, @outputSubDir)}
+      @oppositeSourceType = {:source => :output, :output => :source}
       puts "SiteRegenerator, @baseDir = #{@baseDir.inspect}"
     end
     
@@ -36,8 +41,43 @@ module Regenerate
       end
     end
     
+    def ensureDirectoryExists(directoryName)
+      if File.exist? directoryName
+        if not File.directory? directoryName
+          raise "Cannot create directory #{directoryName}, already exists as a non-directory file"
+        end
+      else
+        puts "Creating missing directory #{directoryName} ..."
+        FileUtils.makedirs(directoryName)
+      end
+    end
+    
+    def regenerateFile(srcFile, pathComponents, sourceType)
+      puts "regenerateFile, srcFile = #{srcFile}, sourceType = #{sourceType.inspect}"
+      outFile = File.join(@sourceTypeDirs[@oppositeSourceType[sourceType]], File.join(pathComponents))
+      puts " outFile = #{outFile}"
+      outFileDir = File.dirname(outFile)
+      if !File.exists?(outFileDir)
+        if sourceType == :output
+          raise "Cannot create missing source directory #{outFileDir} - please do so manually if required"
+        end
+        ensureDirectoryExists(outFileDir)
+      end
+    end
+    
     def regenerateSubPath(pathComponents, sourceType)
       puts "regenerateSubPath, pathComponents = #{pathComponents.inspect}, sourceType = #{sourceType.inspect}"
+      srcPath = File.join(@sourceTypeDirs[sourceType], File.join(pathComponents))
+      puts " srcPath = #{srcPath}"
+      if File.directory? (srcPath)
+        for entry in Dir.entries(srcPath) do
+          if !entry.start_with?("_")
+            regenerateSubPath(pathComponents + [entry])
+          end
+        end
+      elsif File.file? (srcPath)
+        regenerateFile(srcPath, pathComponents, sourceType)
+      end
     end
     
     def regeneratePath(path)
