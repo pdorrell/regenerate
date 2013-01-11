@@ -1,3 +1,5 @@
+require 'pathname'
+
 module Regenerate
   
   class PathAndParents
@@ -28,7 +30,29 @@ module Regenerate
     
     def regeneratePath(path)
       path = File.expand_path(path)
+      puts "SiteRegenerator.regeneratePath, path = #{path}"
+      relativePath = Pathname.new(path).relative_path_from(Pathname.new(@baseDir))
+      puts " relativePath = #{relativePath}"
+      relativePathComponents = relativePath.to_s.split("/")
+      puts " relativePathComponents = #{relativePathComponents.inspect}"
+      subDir = relativePathComponents[0]
+      if subDir == @sourceSubDir
+        regenerateSourcePath(relativePathComponents[1..-1].join("/"))
+      elsif subDir == @outputSubDir
+        regenerateOutputPath(relativePathComponents[1..-1].join("/"))
+      else
+        raise "Path #{path} to regenerate is not contained in #{@sourceSubDir} (source) or #{@outputSubDir} (output) sub-directory of base dir #{@baseDir}"
+      end
     end
+    
+    def regenerateSourcePath(relativeSourcePath)
+      puts "regenerateSourcePath, relativeSourcePath = #{relativeSourcePath}"
+    end
+    
+    def regenerateOutputPath(relativeOutputPath)
+      puts "regenerateOutputPath, relativeOutputPath = #{relativeOutputPath}"
+    end
+    
   end
   
   def self.findRegenerateScript(path, fileName)
