@@ -28,6 +28,18 @@ module Regenerate
       puts "SiteRegenerator, @baseDir = #{@baseDir.inspect}"
     end
     
+    def checkNotSourceOnly(pathComponents)
+      for component in pathComponents do
+        if component.start_with?("_")
+          raise "Cannot regenerate source-only component #{pathComponents.join("/")}"
+        end
+      end
+    end
+    
+    def regenerateSubPath(pathComponents, sourceType)
+      puts "regenerateSubPath, pathComponents = #{pathComponents.inspect}, sourceType = #{sourceType.inspect}"
+    end
+    
     def regeneratePath(path)
       path = File.expand_path(path)
       puts "SiteRegenerator.regeneratePath, path = #{path}"
@@ -36,21 +48,15 @@ module Regenerate
       relativePathComponents = relativePath.to_s.split("/")
       puts " relativePathComponents = #{relativePathComponents.inspect}"
       subDir = relativePathComponents[0]
+      relativeSubDirPathComponents = relativePathComponents[1..-1]
+      checkNotSourceOnly(relativeSubDirPathComponents)
       if subDir == @sourceSubDir
-        regenerateSourcePath(relativePathComponents[1..-1].join("/"))
+        regenerateSubPath(relativeSubDirPathComponents, :source)
       elsif subDir == @outputSubDir
-        regenerateOutputPath(relativePathComponents[1..-1].join("/"))
+        regenerateSubPath(relativeSubDirPathComponents, :output)
       else
         raise "Path #{path} to regenerate is not contained in #{@sourceSubDir} (source) or #{@outputSubDir} (output) sub-directory of base dir #{@baseDir}"
       end
-    end
-    
-    def regenerateSourcePath(relativeSourcePath)
-      puts "regenerateSourcePath, relativeSourcePath = #{relativeSourcePath}"
-    end
-    
-    def regenerateOutputPath(relativeOutputPath)
-      puts "regenerateOutputPath, relativeOutputPath = #{relativeOutputPath}"
     end
     
   end
