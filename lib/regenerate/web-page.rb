@@ -346,21 +346,23 @@ module Regenerate
       end
     end
     
-    def writeRegeneratedFile
-      backupFileName = @fileName+"~"
+    def writeRegeneratedFile(outFile)
+      backupFileName = outFile+"~"
       if File.exists? backupFileName
         puts "Deleting existing backup file #{backupFileName} ..."
         File.delete (backupFileName)
       end
-      puts "Renaming file #{@fileName} to #{backupFileName} ..."
-      File.rename(@fileName, backupFileName)
-      puts "Outputting regenerated page to #{@fileName} ..."
-      File.open(@fileName, "w") do |f|
+      if File.exists? outFile
+        puts "Renaming file #{outFile} to #{backupFileName} ..."
+        File.rename(outFile, backupFileName)
+      end
+      puts "Outputting regenerated page to #{outFile} ..."
+      File.open(outFile, "w") do |f|
         for component in @components do
           f.write(component.output)
         end
       end
-      puts "Finished writing #{@fileName}"
+      puts "Finished writing #{outFile}"
     end
     
     def readFileLines
@@ -390,8 +392,13 @@ module Regenerate
     
     def regenerate
       executeRubyComponents
-      writeRegeneratedFile
+      writeRegeneratedFile(@fileName)
       #display
+    end
+    
+    def regenerateToOutputFile(outFile)
+      executeRubyComponents
+      writeRegeneratedFile(outFile)
     end
     
     def executeRubyComponents
