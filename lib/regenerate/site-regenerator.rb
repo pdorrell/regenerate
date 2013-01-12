@@ -21,8 +21,7 @@ module Regenerate
   end
   
   class SiteRegenerator
-    def initialize(baseDir, sourceSubDir, outputSubDir, 
-                   fileConfigs)
+    def initialize(baseDir, sourceSubDir, outputSubDir)
       @baseDir = File.expand_path(baseDir)
       @sourceSubDir = sourceSubDir
       @outputSubDir = outputSubDir
