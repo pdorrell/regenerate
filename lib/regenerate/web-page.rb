@@ -230,12 +230,12 @@ module Regenerate
   class WebPage
     attr_reader :fileName
     
-    def initialize(fileName, pageObjectClass)
+    def initialize(fileName)
       @fileName = fileName
       @components = []
       @currentComponent = nil
       @componentInstanceVariables = {}
-      @pageObject = pageObjectClass.new
+      @pageObject = PageObject.new # default, can be overridden by SetPageObjectClass
       setPageObjectInstanceVar("@fileName", @fileName)
       setPageObjectInstanceVar("@baseFileName", File.basename(@fileName))
       @initialInstanceVariables = Set.new(@pageObject.instance_variables)

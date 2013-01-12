@@ -57,7 +57,7 @@ module Regenerate
       subPath = pathComponents.join("/")
       outFile = File.join(@sourceTypeDirs[:output], subPath)
       puts "  outFile = #{outFile}"
-      WebPage.new(srcFile, PageObject).regenerate
+      WebPage.new(srcFile).regenerate
     end
     
     def regenerateFile(srcFile, pathComponents, sourceType)
