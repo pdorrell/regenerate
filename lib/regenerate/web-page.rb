@@ -84,6 +84,26 @@ module Regenerate
     end
   end
   
+  class SetPageObjectClass<PageComponent
+    attr_reader :className
+    def initialize(className)
+      super()
+      @className = className
+    end
+    
+    def output(showSource = true)
+      if showSource
+        "<!-- [class #{@className}] -->\n"
+      else
+        ""
+      end
+    end
+    
+    def addToParentPage
+      @parentPage.setPageObject(@className)
+    end
+  end
+  
   # Base class for the text variable types
   class TextVariable<PageComponent
     attr_reader :varName
@@ -144,7 +164,7 @@ module Regenerate
     end
   end
   
-  COMMENT_LINE_REGEX = /^\s*(<!--\s*|)(\[|)((@|)[_a-zA-Z][_a-zA-Z0-9]*)(\]|)(\s*-->|)?\s*$/
+  COMMENT_LINE_REGEX = /^\s*(<!--\s*|)(\[|)((@|)[_a-zA-Z][_a-zA-Z0-9]*)(|\s+([_a-zA-Z0-9]*))(\]|)(\s*-->|)?\s*$/
   
   class ParseException<Exception
   end
@@ -152,21 +172,22 @@ module Regenerate
   class ParsedRejennerCommentLine
     
     attr_reader :isInstanceVar, :hasCommentStart, :hasCommentEnd, :sectionStart, :sectionEnd
-    attr_reader :isEmptySection, :line, :name
+    attr_reader :isEmptySection, :line, :name, :value
     
     def initialize(line, match)
       @hasCommentStart = match[1] != ""
       @sectionStart = match[2] != ""
       @isInstanceVar = match[4] != ""
       @name = match[3]
-      @sectionEnd = match[5] != ""
-      @hasCommentEnd = match[6] != ""
+      @value = match[6]
+      @sectionEnd = match[7] != ""
+      @hasCommentEnd = match[8] != ""
       @line = line
       @isEmptySection = @sectionStart && @sectionEnd
     end
     
     def to_s
-      "#{@hasCommentStart ? "<!-- ":""}#{@sectionStart ? "[ ":""}#{@isInstanceVar ? "@ ":""}#{@name.inspect}#{@sectionEnd ? " ]":""}#{@hasCommentEnd ? " -->":""}"
+      "#{@hasCommentStart ? "<!-- ":""}#{@sectionStart ? "[ ":""}#{@isInstanceVar ? "@ ":""}#{@name.inspect}#{@value ? " "+@value:""}#{@sectionEnd ? " ]":""}#{@hasCommentEnd ? " -->":""}"
     end
     
     def isRejennerCommentLine
@@ -187,7 +208,7 @@ module Regenerate
     
     # only call this method if isRejennerCommentLine returns true
     def checkIsValid
-      if !@isInstanceVar and !["ruby"].include?(@name)
+      if !@isInstanceVar and !["ruby", "class"].include?(@name)
         raiseParseException("Unknown section name #{@name.inspect}")
       end
       if @isEmptySection and (!@hasCommentStart && !@hasCommentEnd)
@@ -209,12 +230,12 @@ module Regenerate
   class WebPage
     attr_reader :fileName
     
-    def initialize(fileName)
+    def initialize(fileName, pageObjectClass)
       @fileName = fileName
       @components = []
       @currentComponent = nil
       @componentInstanceVariables = {}
-      @pageObject = PageObject.new
+      @pageObject = pageObjectClass.new
       setPageObjectInstanceVar("@fileName", @fileName)
       setPageObjectInstanceVar("@baseFileName", File.basename(@fileName))
       @initialInstanceVariables = Set.new(@pageObject.instance_variables)
@@ -247,6 +268,7 @@ module Regenerate
     end
     
     def startNewComponent(component, startComment = nil)
+      
       component.parentPage = self
       @currentComponent = component
       #puts "startNewComponent, @currentComponent = #{@currentComponent.inspect}"
@@ -262,6 +284,17 @@ module Regenerate
         startNewComponent(StaticHtml.new)
       end
       @currentComponent.addLine(line)
+    end
+    
+    def classFromString(str)
+      str.split('::').inject(Object) do |mod, class_name|
+        mod.const_get(class_name)
+      end
+    end
+    
+    def setPageObject(className)
+      pageObjectClass = classFromString(className)
+      @pageObject = pageObjectClass.new
     end
     
     def processCommandLine(parsedCommandLine, lineNumber)
@@ -289,6 +322,8 @@ module Regenerate
         else
           if parsedCommandLine.name == "ruby"
             startNewComponent(RubyCode.new(lineNumber+1), parsedCommandLine)
+          elsif parsedCommandLine.name == "class"
+            startNewComponent(SetPageObjectClass.new(parsedCommandLine.value), parsedCommandLine)
           else
             raise ParseException.new("Unknown section type #{parsedCommandLine.name.inspect}")
           end
@@ -338,6 +373,7 @@ module Regenerate
         commentLineMatch = COMMENT_LINE_REGEX.match(line)
         if commentLineMatch
           parsedCommandLine = ParsedRejennerCommentLine.new(line, commentLineMatch)
+          #puts "parsedCommandLine = #{parsedCommandLine}"
           if parsedCommandLine.isRejennerCommentLine
             parsedCommandLine.checkIsValid
             processCommandLine(parsedCommandLine, lineNumber)

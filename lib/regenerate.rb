@@ -14,7 +14,7 @@ module Regenerate
   
   def self.regenerate(fileName)
     configureRegenerate(File.dirname(fileName))
-    WebPage.new(fileName).regenerate
+    WebPage.new(fileName, PageObject).regenerate
   end
   
   def self.regenerateThisDir(globPattern = "*.html")
