@@ -52,6 +52,13 @@ module Regenerate
       end
     end
     
+    def regenerateFileFromSource(srcFile, pathComponents)
+      puts "regenerateFileFromSource, srcFile = #{srcFile}, pathComponents = #{pathComponents.inspect}"
+      subPath = pathComponents.join("/")
+      outFile = File.join(@sourceTypeDirs[:output], subPath)
+      puts "  outFile = #{outFile}"
+    end
+    
     def regenerateFile(srcFile, pathComponents, sourceType)
       puts "regenerateFile, srcFile = #{srcFile}, sourceType = #{sourceType.inspect}"
       outFile = File.join(@sourceTypeDirs[@oppositeSourceType[sourceType]], File.join(pathComponents))
@@ -62,6 +69,11 @@ module Regenerate
           raise "Cannot create missing source directory #{outFileDir} - please do so manually if required"
         end
         ensureDirectoryExists(outFileDir)
+      end
+      if sourceType == :output
+        raise "Regeneration from output file not yet implemented"
+      elsif sourceType == :source
+        regenerateFileFromSource(srcFile, pathComponents)
       end
     end
     
