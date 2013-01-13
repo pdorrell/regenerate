@@ -84,8 +84,10 @@ module Regenerate
       puts " srcPath = #{srcPath}"
       if File.directory? (srcPath)
         for entry in Dir.entries(srcPath) do
-          if !entry.start_with?("_")
-            regenerateSubPath(pathComponents + [entry])
+          if ![".", ".."].include? entry
+            if !entry.start_with?("_")
+              regenerateSubPath(pathComponents + [entry], sourceType)
+            end
           end
         end
       elsif File.file? (srcPath)
