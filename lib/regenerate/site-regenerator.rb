@@ -1,5 +1,6 @@
 require 'pathname'
 require 'fileutils'
+require 'regenerate/regenerate-utils.rb'
 
 module Regenerate
   
@@ -51,13 +52,26 @@ module Regenerate
       end
     end
     
+    REGENERATE_EXTENSIONS = [".htm", ".html", ".xml"]
+    
+    def copySrcToOutputFile(srcFile, outFile)
+      Regenerate.makeBackupFile(outFile)
+      FileUtils.cp(srcFile, outFile, :verbose => true)
+    end
+    
     def regenerateFileFromSource(srcFile, pathComponents)
       puts "regenerateFileFromSource, srcFile = #{srcFile}, pathComponents = #{pathComponents.inspect}"
       subPath = pathComponents.join("/")
       outFile = File.join(@sourceTypeDirs[:output], subPath)
       puts "  outFile = #{outFile}"
       ensureDirectoryExists(File.dirname(outFile))
-      WebPage.new(srcFile).regenerateToOutputFile(outFile)
+      extension = File.extname(srcFile).downcase
+      puts "  extension = #{extension}"
+      if REGENERATE_EXTENSIONS.include? extension
+        WebPage.new(srcFile).regenerateToOutputFile(outFile)
+      else
+        copySrcToOutputFile(srcFile, outFile)
+      end
     end
     
     def regenerateFile(srcFile, pathComponents, sourceType)

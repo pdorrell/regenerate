@@ -1,5 +1,6 @@
 require 'set'
 require 'erb'
+require 'regenerate/regenerate-utils.rb'
 
 module Regenerate
   
@@ -347,15 +348,7 @@ module Regenerate
     end
     
     def writeRegeneratedFile(outFile)
-      backupFileName = outFile+"~"
-      if File.exists? backupFileName
-        puts "Deleting existing backup file #{backupFileName} ..."
-        File.delete (backupFileName)
-      end
-      if File.exists? outFile
-        puts "Renaming file #{outFile} to #{backupFileName} ..."
-        File.rename(outFile, backupFileName)
-      end
+      Regenerate.makeBackupFile(outFile)
       puts "Outputting regenerated page to #{outFile} ..."
       File.open(outFile, "w") do |f|
         for component in @components do
