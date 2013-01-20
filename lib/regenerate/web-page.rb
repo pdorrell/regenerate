@@ -236,12 +236,16 @@ module Regenerate
       @components = []
       @currentComponent = nil
       @componentInstanceVariables = {}
-      @pageObject = PageObject.new # default, can be overridden by SetPageObjectClass
+      initializePageObject(PageObject.new)  # default, can be overridden by SetPageObjectClass
+      @rubyComponents = []
+      readFileLines
+    end
+    
+    def initializePageObject(pageObject)
+      @pageObject = pageObject
       setPageObjectInstanceVar("@fileName", @fileName)
       setPageObjectInstanceVar("@baseFileName", File.basename(@fileName))
       @initialInstanceVariables = Set.new(@pageObject.instance_variables)
-      @rubyComponents = []
-      readFileLines
     end
     
     def getPageObjectInstanceVar(varName)
@@ -249,7 +253,7 @@ module Regenerate
     end
     
     def setPageObjectInstanceVar(varName, value)
-      #puts " setPageObjectInstanceVar, #{varName} = #{value.inspect}"
+      puts " setPageObjectInstanceVar, #{varName} = #{value.inspect}"
       @pageObject.instance_variable_set(varName, value)
     end
     
@@ -295,7 +299,7 @@ module Regenerate
     
     def setPageObject(className)
       pageObjectClass = classFromString(className)
-      @pageObject = pageObjectClass.new
+      initializePageObject(pageObjectClass.new)
     end
     
     def processCommandLine(parsedCommandLine, lineNumber)
@@ -418,9 +422,10 @@ module Regenerate
       end
     end
   end
-    
+  
   class PageObject
     def erb(templateFileName)
+      puts "erb, self = #{self}, @fileName = #{@fileName.inspect}"
       @binding = binding
       File.open(templateFileName, "r") do |input|
         templateText = input.read
@@ -432,6 +437,16 @@ module Regenerate
 
     def require_relative(path)
       require File.join(File.dirname(@fileName), path.to_str)
+    end
+    
+    def saveProperties
+      properties = {}
+      for property in propertiesToSave
+        value = instance_variable_get("@" + property.to_s)
+        properties[property] = value
+      end
+      propertiesFileName = self.class.propertiesFileName(@baseFileName)
+      puts "Saving properties #{properties.inspect} to #{propertiesFileName}"
     end
 
   end
