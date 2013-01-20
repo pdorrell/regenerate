@@ -1,5 +1,6 @@
 require 'set'
 require 'erb'
+require 'json'
 require 'regenerate/regenerate-utils.rb'
 
 module Regenerate
@@ -229,6 +230,9 @@ module Regenerate
   end
   
   class WebPage
+    
+    include Regenerate::Utils
+    
     attr_reader :fileName
     
     def initialize(fileName)
@@ -352,7 +356,7 @@ module Regenerate
     end
     
     def writeRegeneratedFile(outFile)
-      Regenerate.makeBackupFile(outFile)
+      makeBackupFile(outFile)
       puts "Outputting regenerated page to #{outFile} ..."
       File.open(outFile, "w") do |f|
         for component in @components do
@@ -424,8 +428,9 @@ module Regenerate
   end
   
   class PageObject
+    include Regenerate::Utils
+    
     def erb(templateFileName)
-      puts "erb, self = #{self}, @fileName = #{@fileName.inspect}"
       @binding = binding
       File.open(templateFileName, "r") do |input|
         templateText = input.read
@@ -447,6 +452,10 @@ module Regenerate
       end
       propertiesFileName = self.class.propertiesFileName(@baseFileName)
       puts "Saving properties #{properties.inspect} to #{propertiesFileName}"
+      ensureDirectoryExists(File.dirname(propertiesFileName))
+      File.open(propertiesFileName,"w") do |f|
+        f.write(JSON.pretty_generate(properties))
+      end
     end
 
   end

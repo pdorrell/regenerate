@@ -22,6 +22,9 @@ module Regenerate
   end
   
   class SiteRegenerator
+    
+    include Regenerate::Utils
+    
     def initialize(baseDir, sourceSubDir, outputSubDir)
       @baseDir = File.expand_path(baseDir)
       @sourceSubDir = sourceSubDir
@@ -41,21 +44,10 @@ module Regenerate
       end
     end
     
-    def ensureDirectoryExists(directoryName)
-      if File.exist? directoryName
-        if not File.directory? directoryName
-          raise "Cannot create directory #{directoryName}, already exists as a non-directory file"
-        end
-      else
-        puts "Creating missing directory #{directoryName} ..."
-        FileUtils.makedirs(directoryName)
-      end
-    end
-    
     REGENERATE_EXTENSIONS = [".htm", ".html", ".xml"]
     
     def copySrcToOutputFile(srcFile, outFile)
-      Regenerate.makeBackupFile(outFile)
+      makeBackupFile(outFile)
       FileUtils.cp(srcFile, outFile, :verbose => true)
     end
     
