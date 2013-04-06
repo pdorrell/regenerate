@@ -66,6 +66,21 @@ module Regenerate
       end
     end
     
+    def regenerateSourceFromOutput(outFile, pathComponents)
+      puts "regenerateSourceFromOutput, outFile = #{outFile}, pathComponents = #{pathComponents.inspect}"
+      subPath = pathComponents.join("/")
+      srcFile = File.join(@sourceTypeDirs[:source], subPath)
+      puts "  srcFile = #{srcFile}"
+      ensureDirectoryExists(File.dirname(srcFile))
+      extension = File.extname(outFile).downcase
+      puts "  extension = #{extension}"
+      if REGENERATE_EXTENSIONS.include? extension
+        raise "Regeneration from output not yet implemented."
+      else
+        copySrcToOutputFile(outFile, srcFile)
+      end
+    end
+    
     def regenerateFile(srcFile, pathComponents, sourceType)
       puts "regenerateFile, srcFile = #{srcFile}, sourceType = #{sourceType.inspect}"
       outFile = File.join(@sourceTypeDirs[@oppositeSourceType[sourceType]], File.join(pathComponents))
@@ -78,7 +93,7 @@ module Regenerate
         ensureDirectoryExists(outFileDir)
       end
       if sourceType == :output
-        raise "Regeneration from output file not yet implemented"
+        regenerateSourceFromOutput(srcFile, pathComponents)
       elsif sourceType == :source
         regenerateFileFromSource(srcFile, pathComponents)
       end
