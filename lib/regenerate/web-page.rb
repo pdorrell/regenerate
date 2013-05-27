@@ -248,6 +248,7 @@ module Regenerate
     def initializePageObject(pageObject)
       @pageObject = pageObject
       setPageObjectInstanceVar("@fileName", @fileName)
+      setPageObjectInstanceVar("@baseDir", File.dirname(@fileName))
       setPageObjectInstanceVar("@baseFileName", File.basename(@fileName))
       @initialInstanceVariables = Set.new(@pageObject.instance_variables)
     end
@@ -432,16 +433,20 @@ module Regenerate
     
     def erb(templateFileName)
       @binding = binding
-      File.open(templateFileName, "r") do |input|
+      File.open(relative_path(templateFileName), "r") do |input|
         templateText = input.read
         template = ERB.new(templateText, nil, nil)
         template.filename = templateFileName
         result = template.result(@binding)
       end
     end
+    
+    def relative_path(path)
+      File.expand_path(File.join(@baseDir, path.to_str))
+    end
 
     def require_relative(path)
-      require File.join(File.dirname(@fileName), path.to_str)
+      require relative_path(path)
     end
     
     def saveProperties
@@ -450,7 +455,7 @@ module Regenerate
         value = instance_variable_get("@" + property.to_s)
         properties[property] = value
       end
-      propertiesFileName = self.class.propertiesFileName(@baseFileName)
+      propertiesFileName = relative_path(self.class.propertiesFileName(@baseFileName))
       puts "Saving properties #{properties.inspect} to #{propertiesFileName}"
       ensureDirectoryExists(File.dirname(propertiesFileName))
       File.open(propertiesFileName,"w") do |f|
