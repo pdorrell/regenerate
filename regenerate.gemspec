@@ -1,12 +1,12 @@
 Gem::Specification.new do |spec|
   spec.name              = "regenerate"
-  spec.version           = "0.0.1"
+  spec.version           = "0.1.0"
   spec.platform          = Gem::Platform::RUBY
   spec.authors           = ["Philip Dorrell"]
-  spec.email             = ["http://www.1729.com/email.html"]
+  spec.email             = ["http://thinkinghard.com/email.html"]
   spec.homepage          = "https://github.com/pdorrell/regenerate"
-  spec.summary           = "A static website regenerator"
-  spec.description       = "Use to regenerate to write a web page with embedded instance variable definitions and embedded ruby code which executes to regenerate the same web page."
+  spec.summary           = "A static website generate/regenerator"
+  spec.description       = "Use to regenerate to write a web page with embedded instance variable definitions and embedded ruby code which executes to regenerate the same web page (or generate to a separate output directory)."
   spec.rubyforge_project = spec.name
 
   spec.required_rubygems_version = ">= 1.3.6"
