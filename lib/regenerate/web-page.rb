@@ -57,7 +57,7 @@ module Regenerate
     end
   end
   
-  # A component of static text which is not assigned to any variable, and which does not change when re-generated.
+  # A page component of static text which is not assigned to any variable, and which does not change when re-generated.
   # Any sequence of line _not_ marked by special start and end lines will constitute static HTML.
   class StaticHtml < PageComponent
     def output(showSource = true)
@@ -69,9 +69,9 @@ module Regenerate
     end
   end
   
-  # A component consisting of Ruby code which is to be evaluated in the context of the object that defines the page
+  # A page component consisting of Ruby code which is to be evaluated in the context of the object that defines the page
   # Defined by start line "<!-- [ruby" and end line "ruby] -->".
-  class RubyCode<PageComponent
+  class RubyCode < PageComponent
     
     attr_reader :lineNumber
     
@@ -93,10 +93,10 @@ module Regenerate
     end
   end
 
-  # A component consisting of a single line which specifies the Ruby class which represents this page
+  # A page component consisting of a single line which specifies the Ruby class which represents this page
   # In the format "<!-- [class <classname>] -->" where <classname> is the name of a Ruby class.
   # The Ruby class should generally have Regenerate::PageObject as a base class.
-  class SetPageObjectClass<PageComponent
+  class SetPageObjectClass < PageComponent
     attr_reader :className
     def initialize(className)
       super()
@@ -116,7 +116,7 @@ module Regenerate
     end
   end
   
-  # Base class for a component defining a block of text (which may or may not be inside a comment)
+  # Base class for a page component defining a block of text (which may or may not be inside a comment)
   # which is assigned to an instance variable of the object representing the page. (The text value for
   # this instance variable may be both read and written by the Ruby code that runs in the context of the object.)
   class TextVariable<PageComponent
@@ -136,7 +136,7 @@ module Regenerate
     end
   end
   
-  # HtmlVariable 
+  # A page component for a block of HTML which is assigned to an instance variable of the page object
   class HtmlVariable < TextVariable
     
     def processEndComment(parsedCommentLine)
@@ -160,7 +160,7 @@ module Regenerate
     end
   end
   
-  # CommentVariable Is an input only
+  # A page component for text inside an HTML comment which is assigned to an instance variable of the page object
   class CommentVariable < TextVariable
     def processEndComment(parsedCommentLine)
       super(parsedCommentLine)
@@ -178,10 +178,35 @@ module Regenerate
     end
   end
   
-  COMMENT_LINE_REGEX = /^\s*(<!--\s*|)(\[|)((@|)[_a-zA-Z][_a-zA-Z0-9]*)(|\s+([_a-zA-Z0-9]*))(\]|)(\s*-->|)?\s*$/
+  # Regex that matches Regenerate comment line, with following components:
+  # * Optional whitespace
+  # * Possible ("<!--" + optional whitespace)
+  # * Possible "["
+  # * Possible Ruby identifier (alphanumeric or underscore with initial non-numeric) with optional "@" prefix
+  # * Possible (whitespace + alphanumeric/underscore value)
+  # * Possible "]"
+  # * Possible (optional whitespace + "-->")
+  # * Optional whitespace
+  COMMENT_LINE_REGEX = /^\s*(<!--\s*|)(\[|)((@|)[_a-zA-Z][_a-zA-Z0-9]*)(|\s+([_a-zA-Z0-9]+))(\]|)(\s*-->|)?\s*$/
   
-  class ParseException<Exception
+  # Any error that occurs when parsing a source file
+  class ParseException < Exception
   end
+  
+  # Regenerate delimits page components ("sections") using special HTML comments. 
+  # The comment lines may - 1. start a comment, 2. end a comment, 
+  # 3. be a self-contained comment line (in which case the self-contained comment may a) start  or b) end a page component, 
+  #   or c) be a page component in itself.
+  # The components of a Regenerate comment line are defined by the regex COMMENT_LINE_REGEX, and 
+  # are identified as follows:
+  # * "<!--" Comment start
+  # * "[" Section start
+  # * Ruby instance variable name (identifier starting with "@"), or, 
+  #     a special section name (currently must be one of "ruby" or "class")
+  # * "]" Section end
+  # * "-->" Comment end
+  # To be identified as a Regenerate comment line, a line must contain at least one of a
+  # comment start and a comment end, and at least one of a section start and a section end.
   
   class ParsedRegenerateCommentLine
     
@@ -204,7 +229,7 @@ module Regenerate
       "#{@hasCommentStart ? "<!-- ":""}#{@sectionStart ? "[ ":""}#{@isInstanceVar ? "@ ":""}#{@name.inspect}#{@value ? " "+@value:""}#{@sectionEnd ? " ]":""}#{@hasCommentEnd ? " -->":""}"
     end
     
-    def isRejennerCommentLine
+    def isRegenerateCommentLine
       return (@hasCommentStart || @hasCommentEnd) && (@sectionStart || @sectionEnd)
     end
     
@@ -220,7 +245,7 @@ module Regenerate
       raise ParseException.new("Error parsing line #{@line.inspect}: #{message}")
     end
     
-    # only call this method if isRejennerCommentLine returns true
+    # only call this method if isRegenerateCommentLine returns true
     def checkIsValid
       if !@isInstanceVar and !["ruby", "class"].include?(@name)
         raiseParseException("Unknown section name #{@name.inspect}")
@@ -241,9 +266,12 @@ module Regenerate
     
   end
   
-  class UnexpectedChangeError<Exception
+  # When running with "checkNoChanges" flag, raise this error if a change is observed
+  class UnexpectedChangeError < Exception
   end
-  
+
+  # A web page which is read from a source file and regenerated to an output file (which
+  # may be the same as the source file)
   class WebPage
     
     include Regenerate::Utils
@@ -425,7 +453,7 @@ module Regenerate
         if commentLineMatch
           parsedCommandLine = ParsedRegenerateCommentLine.new(line, commentLineMatch)
           #puts "parsedCommandLine = #{parsedCommandLine}"
-          if parsedCommandLine.isRejennerCommentLine
+          if parsedCommandLine.isRegenerateCommentLine
             parsedCommandLine.checkIsValid
             processCommandLine(parsedCommandLine, lineNumber)
           else
@@ -474,10 +502,14 @@ module Regenerate
       end
     end
   end
-  
+
+  # The Ruby object contained within a web page. Instance variables defined in the HTML
+  # belong to this object, and Ruby code defined in the page is executed in the context of this object.
+  # This class is the base class for classes that define particular types of web pages
   class PageObject
     include Regenerate::Utils
     
+    # Method to render an ERB template file in the context of this object
     def erb(templateFileName)
       @binding = binding
       File.open(relative_path(templateFileName), "r") do |input|
@@ -487,22 +519,32 @@ module Regenerate
         result = template.result(@binding)
       end
     end
-    
+
+    # Method to render an ERB template (defined in-line) in the context of this object
     def erbFromString(templateString)
       @binding = binding
       template = ERB.new(templateString, nil, nil)
       template.result(@binding)
     end
-      
     
+    # Calculate absolute path given path relative to the directory containing the source file for the web page
     def relative_path(path)
       File.expand_path(File.join(@baseDir, path.to_str))
     end
 
+    # Require a Ruby file given a path relative to the web page source file.
     def require_relative(path)
       require relative_path(path)
     end
-    
+
+    # Save some of the page object's instance variable values to a file as JSON
+    # This method depends on the following defined in the actual page object class:
+    # * propertiesToSave instance method, to return an array of symbols
+    # * propertiesFileName class method, to return name of properties file as a function of the web page source file name
+    #  (propertiesFileName is a class method, because it needs to be invoked by other code that _reads_ the properties
+    #   file when the page object itself does not exist)
+    # Example of useage: an index file for a blog needs to read properties of each blog page, 
+    # where the blog page objects have saved their details into the individual property files.
     def saveProperties
       properties = {}
       for property in propertiesToSave
