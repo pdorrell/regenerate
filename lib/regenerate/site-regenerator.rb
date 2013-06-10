@@ -4,6 +4,7 @@ require 'regenerate/regenerate-utils.rb'
 
 module Regenerate
   
+  # An object to iterate over a directory path and all its parent directories
   class PathAndParents
     def initialize(path)
       @path = path
@@ -21,14 +22,24 @@ module Regenerate
     end
   end
   
+  # The main object representing the static website source and output directories
+  # where generation or regeneration will occur.
+  # There are three types of generation/regeneration, depending on how it is invoked:
+  # 1. Re-generate source file or files in-place
+  # 2. Generate output file or files from source file or files
+  # 3. Re-generate source file or files from output file or files (this is for when output files have been directly edited, 
+  #                                                                and when it is possible to re-generate the source)
   class SiteRegenerator
     
     include Regenerate::Utils
     
-    attr_accessor :checkNoChanges
-    
+    # an option to check for changes and throw an error before an existing output file is changed
+    # (use this option to test that certain changes in your code _don't_ change the result for your website)
+    attr_accessor :checkNoChanges 
+
+    # Initialise giving base directory of project, and sub-directories for source and output
+    # e.g. "/home/me/myproject", "src" and "output"
     def initialize(baseDir, sourceSubDir, outputSubDir)
-      
       @baseDir = File.expand_path(baseDir)
       @sourceSubDir = sourceSubDir
       @outputSubDir = outputSubDir
@@ -40,6 +51,7 @@ module Regenerate
       puts "SiteRegenerator, @baseDir = #{@baseDir.inspect}"
     end
     
+    # files & directories starting with "_" are not output files (they are other helper files)
     def checkNotSourceOnly(pathComponents)
       for component in pathComponents do
         if component.start_with?("_")
@@ -48,13 +60,17 @@ module Regenerate
       end
     end
     
+    # Extensions for types of files to be generated/regenerated
     REGENERATE_EXTENSIONS = [".htm", ".html", ".xml"]
     
+    # Copy a source file directly to an output file
     def copySrcToOutputFile(srcFile, outFile)
       makeBackupFile(outFile)
       FileUtils.cp(srcFile, outFile, :verbose => true)
     end
     
+    # Generate an output file from a source file
+    # (pathComponents represent the path from the root source directory to the actual file)
     def regenerateFileFromSource(srcFile, pathComponents)
       puts "regenerateFileFromSource, srcFile = #{srcFile}, pathComponents = #{pathComponents.inspect}"
       subPath = pathComponents.join("/")
@@ -70,6 +86,7 @@ module Regenerate
       end
     end
     
+    # Generate a source file from an output file (if that can be done)
     def regenerateSourceFromOutput(outFile, pathComponents)
       puts "regenerateSourceFromOutput, outFile = #{outFile}, pathComponents = #{pathComponents.inspect}"
       subPath = pathComponents.join("/")
@@ -85,6 +102,7 @@ module Regenerate
       end
     end
     
+    # Regenerate (or generate) a file, either from source file or from output file
     def regenerateFile(srcFile, pathComponents, sourceType)
       puts "regenerateFile, srcFile = #{srcFile}, sourceType = #{sourceType.inspect}"
       outFile = File.join(@sourceTypeDirs[@oppositeSourceType[sourceType]], File.join(pathComponents))
@@ -103,6 +121,8 @@ module Regenerate
       end
     end
     
+    # Regenerate (or generated) specified sub-directory or file in sub-directory
+    # of source or output root directory (according to sourceType)
     def regenerateSubPath(pathComponents, sourceType)
       puts "regenerateSubPath, pathComponents = #{pathComponents.inspect}, sourceType = #{sourceType.inspect}"
       srcPath = File.join(@sourceTypeDirs[sourceType], File.join(pathComponents))
@@ -120,6 +140,8 @@ module Regenerate
       end
     end
     
+    # Regenerate (or generate) from specified source file (according to whether the path is within
+    # the source or output root directory).
     def regeneratePath(path)
       path = File.expand_path(path)
       puts "SiteRegenerator.regeneratePath, path = #{path}"
@@ -141,6 +163,7 @@ module Regenerate
     
   end
   
+  # Searching upwards from the current directory, find a file ".regenerate.rb" in the root directory of the project
   def self.findRegenerateScript(path, fileName)
     for dir in PathAndParents.new(path) do
       scriptFileName = File.join(dir, fileName)
@@ -152,6 +175,11 @@ module Regenerate
     raise "File #{fileName} not found in #{path} or any or its parent directories"
   end
   
+  # Run the ".regenerate.rb" script that is in the root directory of the project
+  # (Note: .regenerate.rb is responsible for requiring Ruby scripts that define Ruby classes specific to the project, 
+  #  for creating a SiteRegenerator instance, and for invoking the regeneratePath method
+  #  on a file or directory name that has been set as the value of the "path" variable in the binding within which
+  #  .regenerate.rb is being evaluated.)
   def self.regeneratePath(path)
     regenerateScriptFileName = findRegenerateScript(path, ".regenerate.rb")
     regenerateScript = File.read(regenerateScriptFileName)

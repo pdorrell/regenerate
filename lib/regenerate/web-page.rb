@@ -171,7 +171,7 @@ module Regenerate
   class ParseException<Exception
   end
   
-  class ParsedRejennerCommentLine
+  class ParsedRegenerateCommentLine
     
     attr_reader :isInstanceVar, :hasCommentStart, :hasCommentEnd, :sectionStart, :sectionEnd
     attr_reader :isEmptySection, :line, :name, :value
@@ -411,7 +411,7 @@ module Regenerate
         #puts "line #{lineNumber}: #{line}"
         commentLineMatch = COMMENT_LINE_REGEX.match(line)
         if commentLineMatch
-          parsedCommandLine = ParsedRejennerCommentLine.new(line, commentLineMatch)
+          parsedCommandLine = ParsedRegenerateCommentLine.new(line, commentLineMatch)
           #puts "parsedCommandLine = #{parsedCommandLine}"
           if parsedCommandLine.isRejennerCommentLine
             parsedCommandLine.checkIsValid
