@@ -229,6 +229,9 @@ module Regenerate
     
   end
   
+  class UnexpectedChangeError<Exception
+  end
+  
   class WebPage
     
     include Regenerate::Utils
@@ -356,8 +359,37 @@ module Regenerate
       end
     end
     
-    def writeRegeneratedFile(outFile)
-      makeBackupFile(outFile)
+    def diffReport(newString, oldString)
+      i = 0
+      minLength = [newString.length, oldString.length].min
+      while i<minLength and newString[i] == oldString[i] do
+        i += 1
+      end
+      diffPos = i
+      newStringEndPos = [diffPos+20,newString.length].min
+      oldStringEndPos = [diffPos+20, newString.length].min
+      startPos = [0, diffPos-10].max
+      "Different from position #{diffPos}: \n  #{newString[startPos...newStringEndPos].inspect}\n !=\n  #{oldString[startPos...newStringEndPos].inspect}"
+    end
+    
+    def checkOutputFileUnchanged(outFile, oldFile)
+      if File.exists? oldFile
+        oldFileContents = File.read(oldFile)
+        newFileContents = File.read(outFile)
+        if oldFileContents != newFileContents
+          newFileName = outFile + ".new"
+          File.rename(outFile, newFileName)
+          File.rename(oldFile, outFile)
+          raise UnexpectedChangeError.new("New file #{newFileName} is different from old file #{outFile}: #{diffReport(newFileContents,oldFileContents)}")
+        end
+      else
+        raise UnexpectedChangeError.new("Can't check #{outFile} against backup #{oldFile} " + 
+                                        "because backup file doesn't exist")
+      end
+    end
+    
+    def writeRegeneratedFile(outFile, checkNoChanges)
+      backupFileName = makeBackupFile(outFile)
       puts "Outputting regenerated page to #{outFile} ..."
       File.open(outFile, "w") do |f|
         for component in @components do
@@ -365,6 +397,9 @@ module Regenerate
         end
       end
       puts "Finished writing #{outFile}"
+      if checkNoChanges
+        checkOutputFileUnchanged(outFile, backupFileName)
+      end
     end
     
     def readFileLines
@@ -398,9 +433,9 @@ module Regenerate
       #display
     end
     
-    def regenerateToOutputFile(outFile)
+    def regenerateToOutputFile(outFile, checkNoChanges = false)
       executeRubyComponents
-      writeRegeneratedFile(outFile)
+      writeRegeneratedFile(outFile, checkNoChanges)
     end
     
     def executeRubyComponents
@@ -440,6 +475,13 @@ module Regenerate
         result = template.result(@binding)
       end
     end
+    
+    def erbFromString(templateString)
+      @binding = binding
+      template = ERB.new(templateString, nil, nil)
+      template.result(@binding)
+    end
+      
     
     def relative_path(path)
       File.expand_path(File.join(@baseDir, path.to_str))

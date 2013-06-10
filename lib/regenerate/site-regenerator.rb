@@ -25,7 +25,10 @@ module Regenerate
     
     include Regenerate::Utils
     
+    attr_accessor :checkNoChanges
+    
     def initialize(baseDir, sourceSubDir, outputSubDir)
+      
       @baseDir = File.expand_path(baseDir)
       @sourceSubDir = sourceSubDir
       @outputSubDir = outputSubDir
@@ -33,6 +36,7 @@ module Regenerate
       @sourceTypeDirs = {:source => File.join(@baseDir, @sourceSubDir), 
         :output => File.join(@baseDir, @outputSubDir)}
       @oppositeSourceType = {:source => :output, :output => :source}
+      @checkNoChanges = false
       puts "SiteRegenerator, @baseDir = #{@baseDir.inspect}"
     end
     
@@ -60,7 +64,7 @@ module Regenerate
       extension = File.extname(srcFile).downcase
       puts "  extension = #{extension}"
       if REGENERATE_EXTENSIONS.include? extension
-        WebPage.new(srcFile).regenerateToOutputFile(outFile)
+        WebPage.new(srcFile).regenerateToOutputFile(outFile, checkNoChanges)
       else
         copySrcToOutputFile(srcFile, outFile)
       end

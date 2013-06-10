@@ -12,6 +12,7 @@ module Regenerate
         puts "Renaming file #{outFile} to #{backupFileName} ..."
         File.rename(outFile, backupFileName)
       end
+      backupFileName
     end
     
     def ensureDirectoryExists(directoryName)
