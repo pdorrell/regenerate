@@ -5,7 +5,11 @@ require 'regenerate/regenerate-utils.rb'
 
 module Regenerate
   
-  # A component, which includes a sequence of lines which make up the text of that component
+  # The textual format for "regeneratable" files is HTML (or XML) with special comment lines that mark the beginnings
+  # and ends of particular "page components". Such components may include actual HTML (or XML) in which case there 
+  # are special start & end comment lines, they may consist entirely of one comment.
+  
+  # Base class for page components, defined by a sequence of lines in an HTML file which make up the text of that component
   class PageComponent
     attr_reader :text
     attr_accessor :parentPage
@@ -53,7 +57,8 @@ module Regenerate
     end
   end
   
-  # A component of static text which is not assigned to any variable, and which does not change
+  # A component of static text which is not assigned to any variable, and which does not change when re-generated.
+  # Any sequence of line _not_ marked by special start and end lines will constitute static HTML.
   class StaticHtml < PageComponent
     def output(showSource = true)
       text + "\n"
@@ -64,6 +69,8 @@ module Regenerate
     end
   end
   
+  # A component consisting of Ruby code which is to be evaluated in the context of the object that defines the page
+  # Defined by start line "<!-- [ruby" and end line "ruby] -->".
   class RubyCode<PageComponent
     
     attr_reader :lineNumber
@@ -85,7 +92,10 @@ module Regenerate
       @parentPage.addRubyComponent(self)
     end
   end
-  
+
+  # A component consisting of a single line which specifies the Ruby class which represents this page
+  # In the format "<!-- [class <classname>] -->" where <classname> is the name of a Ruby class.
+  # The Ruby class should generally have Regenerate::PageObject as a base class.
   class SetPageObjectClass<PageComponent
     attr_reader :className
     def initialize(className)
@@ -106,7 +116,9 @@ module Regenerate
     end
   end
   
-  # Base class for the text variable types
+  # Base class for a component defining a block of text (which may or may not be inside a comment)
+  # which is assigned to an instance variable of the object representing the page. (The text value for
+  # this instance variable may be both read and written by the Ruby code that runs in the context of the object.)
   class TextVariable<PageComponent
     attr_reader :varName
     
@@ -124,7 +136,7 @@ module Regenerate
     end
   end
   
-  # HtmlVariable Can be both source and result
+  # HtmlVariable 
   class HtmlVariable < TextVariable
     
     def processEndComment(parsedCommentLine)
