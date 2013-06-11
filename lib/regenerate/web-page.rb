@@ -7,7 +7,7 @@ module Regenerate
   
   # The textual format for "regeneratable" files is HTML (or XML) with special comment lines that mark the beginnings
   # and ends of particular "page components". Such components may include actual HTML (or XML) in which case there 
-  # are special start & end comment lines, they may consist entirely of one comment.
+  # are special start & end comment lines, or, they may consist entirely of one multi-line comment.
   
   # Base class for page components, defined by a sequence of lines in an HTML file which make up the text of that component
   class PageComponent
@@ -15,55 +15,64 @@ module Regenerate
     attr_accessor :parentPage
     
     def initialize
-      @lines = []
+      @lines = [] # No lines of text yet
       @text = nil # if text is nil, component is not yet finished
-      @parentPage = nil
+      @parentPage = nil # A link to the parent WebPage object, will get set from a method on that object
     end
     
     def processStartComment(parsedCommentLine)
-      @startName = parsedCommentLine.name
-      initializeFromStartComment(parsedCommentLine)
+      @startName = parsedCommentLine.name # remember the name in the start command, 
+                                          # because it has to match the name in the end command
+      initializeFromStartComment(parsedCommentLine) # do whatever has to be done to initialise this page component
       if parsedCommentLine.sectionEnd # section end in start comment line, so already finished
-        finishText
+        finishText # i.e. there will be no more text lines added to this component
       end
     end
     
     def processEndComment(parsedCommentLine)
-      finishText
-      if parsedCommentLine.name != @startName
+      finishText # there will be no more text lines added to this component
+      if parsedCommentLine.name != @startName # check match of name in end comment with name in start comment
         raise ParseException.new("Name #{parsedCommentLine.name.inspect} in end comment doesn't match name #{@startName.inspect} in start comment.")
       end
     end
-    
+
+    # Do whatever needs to be done to initialise this page component from the start command
     def initializeFromStartComment(parsedCommentLine)
-      # default do nothing
+      # default do nothing - over-ride this method in derived classes
     end
     
+    # Has this component finished
     def finished
-      @text != nil
+      @text != nil # finishText sets the value of @text, so use that as a test for "is it finished?"
     end
     
+    # Add a text line, by adding it to @lines
     def addLine(line)
       @lines << line
     end
     
+    # Do whatever needs to be done to the parent WebPage object for this page component
     def addToParentPage
-      # default do nothing
+      # default do nothing - over-ride this in derived classes
     end
     
+    # After all text lines have been added, join them together and put into @text
     def finishText
       @text = @lines.join("\n")
-      addToParentPage
+      addToParentPage # do whatever needs to be done to the parent WebPage object for this page component
     end
   end
   
   # A page component of static text which is not assigned to any variable, and which does not change when re-generated.
   # Any sequence of line _not_ marked by special start and end lines will constitute static HTML.
   class StaticHtml < PageComponent
+    
+    # output the text as is (but with an extra eoln)
     def output(showSource = true)
       text + "\n"
     end
     
+    # varName is nil because no instance variable is associated with a static HTML page component
     def varName
       nil
     end
@@ -73,13 +82,16 @@ module Regenerate
   # Defined by start line "<!-- [ruby" and end line "ruby] -->".
   class RubyCode < PageComponent
     
+    # The line number, which matters for code evaluation so that Ruby can populate stack traces correctly
     attr_reader :lineNumber
     
+    # Initialise this page component, additionally initialising the line number
     def initialize(lineNumber)
       super()
       @lineNumber = lineNumber
     end
     
+    # Output this page component in a form that would be reparsed back into the same page component
     def output(showSource = true)
       if showSource
         "<!-- [ruby\n#{text}\nruby] -->\n"
@@ -88,6 +100,8 @@ module Regenerate
       end
     end
     
+    # Add to parent page, which requires adding to the page's list of Ruby page components (which will all
+    # get executed at some later stage)
     def addToParentPage
       @parentPage.addRubyComponent(self)
     end
@@ -97,12 +111,16 @@ module Regenerate
   # In the format "<!-- [class <classname>] -->" where <classname> is the name of a Ruby class.
   # The Ruby class should generally have Regenerate::PageObject as a base class.
   class SetPageObjectClass < PageComponent
-    attr_reader :className
+    
+    attr_reader :className # The name of the Ruby class of the page object
+    
+    # Initialise this page component, additionally initialising the class name    
     def initialize(className)
       super()
       @className = className
     end
     
+    # Output this page component in a form that would be reparsed back into the same page component
     def output(showSource = true)
       if showSource
         "<!-- [class #{@className}] -->\n"
@@ -112,6 +130,7 @@ module Regenerate
     end
     
     def addToParentPage
+      # Add to parent page, which in effect creates a new page object of the specified class
       @parentPage.setPageObject(@className)
     end
   end
@@ -284,10 +303,16 @@ module Regenerate
       @currentComponent = nil
       @componentInstanceVariables = {}
       initializePageObject(PageObject.new)  # default, can be overridden by SetPageObjectClass
+      @pageObjectClassNameSpecified = nil
       @rubyComponents = []
       readFileLines
     end
-    
+
+    # initialise the "page object", which is the object that "owns" the defined instance variables, 
+    # and the object in whose context the Ruby components are evaluated
+    # Three special instance variable values are set - @fileName, @baseDir, @baseFileName, 
+    # so that they can be accessed, if necessary, by Ruby code in the Ruby code components.
+    # (if this is called a second time, it overrides whatever was set the first time)
     def initializePageObject(pageObject)
       @pageObject = pageObject
       setPageObjectInstanceVar("@fileName", @fileName)
@@ -346,49 +371,57 @@ module Regenerate
     end
     
     def setPageObject(className)
+      if @pageObjectClassNameSpecified
+        raise ParseException("Page object class name specified more than once")
+      end
+      @pageObjectClassNameSpecified = className
       pageObjectClass = classFromString(className)
       initializePageObject(pageObjectClass.new)
     end
     
+    # Process a line of source text that has been identified as a Regenerate start and/or end of comment line
     def processCommandLine(parsedCommandLine, lineNumber)
       #puts "command: #{parsedCommandLine}"
-      if @currentComponent && (@currentComponent.is_a? StaticHtml)
+      if @currentComponent && (@currentComponent.is_a? StaticHtml) # finish any current static HTML component
         @currentComponent.finishText
         @currentComponent = nil
       end
-      if @currentComponent
-        if parsedCommandLine.sectionStart
+      if @currentComponent # we are in a page component other than a static HTML component
+        if parsedCommandLine.sectionStart # we have already started, so we cannot start again
           raise ParseException.new("Unexpected section start #{parsedCommandLine} inside component")
         end
-        @currentComponent.processEndComment(parsedCommandLine)
+        @currentComponent.processEndComment(parsedCommandLine) # so, command must be a command to end the page component
         @currentComponent = nil
-      else
-        if !parsedCommandLine.sectionStart
+      else # not in any page component, so we need to start a new one
+        if !parsedCommandLine.sectionStart # if it's an end command, error, because there is nothing to end
           raise ParseException.new("Unexpected section end #{parsedCommandLine}, outside of component")
         end
-        if parsedCommandLine.isInstanceVar
-          if parsedCommandLine.hasCommentEnd
+        if parsedCommandLine.isInstanceVar # it's a page component that defines an instance variable value
+          if parsedCommandLine.hasCommentEnd # the value will be an HTML value
             startNewComponent(HtmlVariable.new, parsedCommandLine)
-          else
+          else # the value will be an HTML-commented value
             startNewComponent(CommentVariable.new, parsedCommandLine)
           end
-        else
-          if parsedCommandLine.name == "ruby"
+        else # not an instance var, so it must be a special command
+          if parsedCommandLine.name == "ruby" # Ruby page component containing Ruby that will be executed in the 
+                                              # context of the page object
             startNewComponent(RubyCode.new(lineNumber+1), parsedCommandLine)
-          elsif parsedCommandLine.name == "class"
+          elsif parsedCommandLine.name == "class" # Specify Ruby class for the page object
             startNewComponent(SetPageObjectClass.new(parsedCommandLine.value), parsedCommandLine)
-          else
+          else # not a known special command
             raise ParseException.new("Unknown section type #{parsedCommandLine.name.inspect}")
           end
         end
-        if @currentComponent.finished
-          @currentComponent = nil
+        if @currentComponent.finished # Did the processing cause the current page component to be finished?
+          @currentComponent = nil # clear the current component
         end
       end
       
     end
     
-    def finish
+    # Finish the current page component after we are at the end of the source file
+    # Anything other than static HTML should be explicitly finished, and if it isn't finished, raise an error.
+    def finishAtEndOfSourceFile
       if @currentComponent
         if @currentComponent.is_a? StaticHtml
           @currentComponent.finishText
@@ -399,6 +432,7 @@ module Regenerate
       end
     end
     
+    # Report the difference between two strings (that should be the same)
     def diffReport(newString, oldString)
       i = 0
       minLength = [newString.length, oldString.length].min
@@ -412,7 +446,10 @@ module Regenerate
       "Different from position #{diffPos}: \n  #{newString[startPos...newStringEndPos].inspect}\n !=\n  #{oldString[startPos...newStringEndPos].inspect}"
     end
     
-    def checkOutputFileUnchanged(outFile, oldFile)
+    # Check that a newly created output file has the same contents as another (backup) file containing the old contents
+    # If it has changed, actually reset the new file to have ".new" at the end of its name, 
+    # and rename the backup file to be the output file (in effect reverting the newly written output).
+    def checkAndEnsureOutputFileUnchanged(outFile, oldFile)
       if File.exists? oldFile
         oldFileContents = File.read(oldFile)
         newFileContents = File.read(outFile)
@@ -428,6 +465,8 @@ module Regenerate
       end
     end
     
+    # Write the output of the page components to the output file (optionally checking that 
+    # there are no differences between the new output and the existing output.
     def writeRegeneratedFile(outFile, checkNoChanges)
       backupFileName = makeBackupFile(outFile)
       puts "Outputting regenerated page to #{outFile} ..."
@@ -438,46 +477,51 @@ module Regenerate
       end
       puts "Finished writing #{outFile}"
       if checkNoChanges
-        checkOutputFileUnchanged(outFile, backupFileName)
+        checkAndEnsureOutputFileUnchanged(outFile, backupFileName)
       end
     end
     
+    # Read in and parse lines from source file
     def readFileLines
       puts "Opening #{@fileName} ..."
       lineNumber = 0
       File.open(@fileName).each_line do |line|
         line.chomp!
-        lineNumber += 1
+        lineNumber += 1 # track line numbers for when Ruby code needs to be executed (i.e. to populate stack traces)
         #puts "line #{lineNumber}: #{line}"
         commentLineMatch = COMMENT_LINE_REGEX.match(line)
-        if commentLineMatch
+        if commentLineMatch # it matches the Regenerate command line regex (but might not actually be a command ...)
           parsedCommandLine = ParsedRegenerateCommentLine.new(line, commentLineMatch)
           #puts "parsedCommandLine = #{parsedCommandLine}"
-          if parsedCommandLine.isRegenerateCommentLine
-            parsedCommandLine.checkIsValid
-            processCommandLine(parsedCommandLine, lineNumber)
+          if parsedCommandLine.isRegenerateCommentLine # if it is a Regenerate command line
+            parsedCommandLine.checkIsValid # check it is valid, and then, 
+            processCommandLine(parsedCommandLine, lineNumber) # process the command line
           else
-            processTextLine(line, lineNumber)
+            processTextLine(line, lineNumber) # process a text line which is not a Regenerate command line
           end
         else
-          processTextLine(line, lineNumber)
+          processTextLine(line, lineNumber) # process a text line which is not a Regenerate command line
         end
       end
-      finish
+      # After processing all source lines, the only unfinished page component permitted is a static HTML component.
+      finishAtEndOfSourceFile
       #puts "Finished reading #{@fileName}."
     end
     
+    # Regenerate the source file (in-place)
     def regenerate
       executeRubyComponents
       writeRegeneratedFile(@fileName)
       #display
     end
     
+    # Regenerate from the source file into the output file
     def regenerateToOutputFile(outFile, checkNoChanges = false)
       executeRubyComponents
       writeRegeneratedFile(outFile, checkNoChanges)
     end
     
+    # Execute the Ruby components which consist of Ruby code to be evaluated in the context of the page object
     def executeRubyComponents
       fileDir = File.dirname(@fileName)
       puts "Executing ruby components in directory #{fileDir} ..."
