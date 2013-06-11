@@ -368,7 +368,7 @@ module Regenerate
     
     # Set the value of an instance variable of the page object
     def setPageObjectInstanceVar(varName, value)
-      puts " setPageObjectInstanceVar, #{varName} = #{value.inspect}"
+      #puts " setPageObjectInstanceVar, #{varName} = #{value.inspect}"
       @pageObject.instance_variable_set(varName, value)
     end
     
@@ -508,13 +508,12 @@ module Regenerate
     # there are no differences between the new output and the existing output.
     def writeRegeneratedFile(outFile, checkNoChanges)
       backupFileName = makeBackupFile(outFile)
-      puts "Outputting regenerated page to #{outFile} ..."
       File.open(outFile, "w") do |f|
         for component in @components do
           f.write(component.output)
         end
       end
-      puts "Finished writing #{outFile}"
+      puts " wrote regenerated page to #{outFile}"
       if checkNoChanges
         checkAndEnsureOutputFileUnchanged(outFile, backupFileName)
       end
@@ -522,7 +521,7 @@ module Regenerate
     
     # Read in and parse lines from source file
     def readFileLines
-      puts "Opening #{@fileName} ..."
+      puts "Reading source file #{@fileName} ..."
       lineNumber = 0
       File.open(@fileName).each_line do |line|
         line.chomp!
@@ -563,12 +562,12 @@ module Regenerate
     # Execute the Ruby components which consist of Ruby code to be evaluated in the context of the page object
     def executeRubyComponents
       fileDir = File.dirname(@fileName)
-      puts "Executing ruby components in directory #{fileDir} ..."
+      #puts "Executing ruby components in directory #{fileDir} ..."
       Dir.chdir(fileDir) do
         for rubyComponent in @rubyComponents
           rubyCode = rubyComponent.text
-          puts ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
-          puts "Executing ruby (line #{rubyComponent.lineNumber}) #{rubyCode.inspect} ..."
+          #puts ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+          #puts "Executing ruby (line #{rubyComponent.lineNumber}) #{rubyCode.inspect} ..."
           @pageObject.instance_eval(rubyCode, @fileName, rubyComponent.lineNumber)
           #puts "Finished executing ruby at line #{rubyComponent.lineNumber}"
         end
@@ -635,7 +634,7 @@ module Regenerate
         properties[property] = value
       end
       propertiesFileName = relative_path(self.class.propertiesFileName(@baseFileName))
-      puts "Saving properties #{properties.inspect} to #{propertiesFileName}"
+      #puts "Saving properties #{properties.inspect} to #{propertiesFileName}"
       ensureDirectoryExists(File.dirname(propertiesFileName))
       File.open(propertiesFileName,"w") do |f|
         f.write(JSON.pretty_generate(properties))

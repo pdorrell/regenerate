@@ -48,7 +48,7 @@ module Regenerate
         :output => File.join(@baseDir, @outputSubDir)}
       @oppositeSourceType = {:source => :output, :output => :source}
       @checkNoChanges = false
-      puts "SiteRegenerator, @baseDir = #{@baseDir.inspect}"
+      puts "SiteRegenerator initialized, @baseDir = #{@baseDir.inspect}"
     end
     
     # files & directories starting with "_" are not output files (they are other helper files)
@@ -72,13 +72,13 @@ module Regenerate
     # Generate an output file from a source file
     # (pathComponents represent the path from the root source directory to the actual file)
     def regenerateFileFromSource(srcFile, pathComponents)
-      puts "regenerateFileFromSource, srcFile = #{srcFile}, pathComponents = #{pathComponents.inspect}"
+      #puts "regenerateFileFromSource, srcFile = #{srcFile}, pathComponents = #{pathComponents.inspect}"
       subPath = pathComponents.join("/")
       outFile = File.join(@sourceTypeDirs[:output], subPath)
-      puts "  outFile = #{outFile}"
+      #puts "  outFile = #{outFile}"
       ensureDirectoryExists(File.dirname(outFile))
       extension = File.extname(srcFile).downcase
-      puts "  extension = #{extension}"
+      #puts "  extension = #{extension}"
       if REGENERATE_EXTENSIONS.include? extension
         WebPage.new(srcFile).regenerateToOutputFile(outFile, checkNoChanges)
       else
@@ -88,13 +88,13 @@ module Regenerate
     
     # Generate a source file from an output file (if that can be done)
     def regenerateSourceFromOutput(outFile, pathComponents)
-      puts "regenerateSourceFromOutput, outFile = #{outFile}, pathComponents = #{pathComponents.inspect}"
+      #puts "regenerateSourceFromOutput, outFile = #{outFile}, pathComponents = #{pathComponents.inspect}"
       subPath = pathComponents.join("/")
       srcFile = File.join(@sourceTypeDirs[:source], subPath)
-      puts "  srcFile = #{srcFile}"
+      #puts "  srcFile = #{srcFile}"
       ensureDirectoryExists(File.dirname(srcFile))
       extension = File.extname(outFile).downcase
-      puts "  extension = #{extension}"
+      #puts "  extension = #{extension}"
       if REGENERATE_EXTENSIONS.include? extension
         raise "Regeneration from output not yet implemented."
       else
@@ -104,9 +104,9 @@ module Regenerate
     
     # Regenerate (or generate) a file, either from source file or from output file
     def regenerateFile(srcFile, pathComponents, sourceType)
-      puts "regenerateFile, srcFile = #{srcFile}, sourceType = #{sourceType.inspect}"
+      #puts "regenerateFile, srcFile = #{srcFile}, sourceType = #{sourceType.inspect}"
       outFile = File.join(@sourceTypeDirs[@oppositeSourceType[sourceType]], File.join(pathComponents))
-      puts " outFile = #{outFile}"
+      #puts " outFile = #{outFile}"
       outFileDir = File.dirname(outFile)
       if !File.exists?(outFileDir)
         if sourceType == :output
@@ -124,9 +124,9 @@ module Regenerate
     # Regenerate (or generated) specified sub-directory or file in sub-directory
     # of source or output root directory (according to sourceType)
     def regenerateSubPath(pathComponents, sourceType)
-      puts "regenerateSubPath, pathComponents = #{pathComponents.inspect}, sourceType = #{sourceType.inspect}"
+      #puts "regenerateSubPath, pathComponents = #{pathComponents.inspect}, sourceType = #{sourceType.inspect}"
       srcPath = File.join(@sourceTypeDirs[sourceType], File.join(pathComponents))
-      puts " srcPath = #{srcPath}"
+      #puts " srcPath = #{srcPath}"
       if File.directory? (srcPath)
         for entry in Dir.entries(srcPath) do
           if ![".", ".."].include? entry
@@ -144,9 +144,9 @@ module Regenerate
     # the source or output root directory).
     def regeneratePath(path)
       path = File.expand_path(path)
-      puts "SiteRegenerator.regeneratePath, path = #{path}"
+      #puts "SiteRegenerator.regeneratePath, path = #{path}"
       relativePath = Pathname.new(path).relative_path_from(Pathname.new(@baseDir))
-      puts " relativePath = #{relativePath}"
+      #puts " relativePath = #{relativePath}"
       relativePathComponents = relativePath.to_s.split("/")
       puts " relativePathComponents = #{relativePathComponents.inspect}"
       subDir = relativePathComponents[0]
@@ -165,10 +165,12 @@ module Regenerate
   
   # Searching upwards from the current directory, find a file ".regenerate.rb" in the root directory of the project
   def self.findRegenerateScript(path, fileName)
+    puts "Find regenerate script ..."
     for dir in PathAndParents.new(path) do
       scriptFileName = File.join(dir, fileName)
       puts " looking for #{scriptFileName} ..."
       if File.exists?(scriptFileName)
+        puts " FOUND #{scriptFileName}"
         return scriptFileName
       end
     end
