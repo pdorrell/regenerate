@@ -130,7 +130,7 @@ module Regenerate
     end
     
     def addToParentPage
-      # Add to parent page, which in effect creates a new page object of the specified class
+      # Add to parent page, which creates a new page object of the specified class (replacing the default PageObject object)
       @parentPage.setPageObject(@className)
     end
   end
@@ -139,17 +139,20 @@ module Regenerate
   # which is assigned to an instance variable of the object representing the page. (The text value for
   # this instance variable may be both read and written by the Ruby code that runs in the context of the object.)
   class TextVariable<PageComponent
-    attr_reader :varName
+    attr_reader :varName # the name of the instance variable of the page object that will hold this value
     
+    # initialise, which sets the instance variable name
     def initializeFromStartComment(parsedCommentLine)
       @varName = parsedCommentLine.instanceVarName
     end
     
+    # add to parent WebPage by adding the specified instance variable to the page object
     def addToParentPage
       #puts "TextVariable.addToParentPage #{@varName} = #{@text.inspect}"
       @parentPage.setPageObjectInstanceVar(@varName, @text)
     end
     
+    # Get the textual value of the page object instance variable
     def textVariableValue
       @parentPage.getPageObjectInstanceVar(@varName)
     end
@@ -158,6 +161,8 @@ module Regenerate
   # A page component for a block of HTML which is assigned to an instance variable of the page object
   class HtmlVariable < TextVariable
     
+    # Process the end command by finishing the page component definition, also check that the closing
+    # command has the correct form (must be a self-contained HTML comment line)
     def processEndComment(parsedCommentLine)
       super(parsedCommentLine)
       if !parsedCommentLine.hasCommentStart
@@ -165,6 +170,8 @@ module Regenerate
       end
     end
     
+    # Output in a form that would be reparsed as the same page component, but with whatever the current
+    # textual value of the associate page object instance variable is.
     def output(showSource = true)
       if showSource
         textValue = textVariableValue
@@ -181,6 +188,9 @@ module Regenerate
   
   # A page component for text inside an HTML comment which is assigned to an instance variable of the page object
   class CommentVariable < TextVariable
+    
+    # Process the end command by finishing the page component definition, also check that the closing
+    # command has the correct form (must be a line that ends an existing HTML comment)
     def processEndComment(parsedCommentLine)
       super(parsedCommentLine)
       if parsedCommentLine.hasCommentStart
@@ -188,6 +198,8 @@ module Regenerate
       end
     end
     
+    # Output in a form that would be reparsed as the same page component, but with whatever the current
+    # textual value of the associate page object instance variable is.
     def output(showSource = true)
       if showSource
         "<!-- [#{@varName}\n#{textVariableValue}\n#{@varName}] -->\n"
@@ -227,10 +239,21 @@ module Regenerate
   # To be identified as a Regenerate comment line, a line must contain at least one of a
   # comment start and a comment end, and at least one of a section start and a section end.
   
+  # An object which matches the regex used to identify Regenerate comment line commands
+  # (Note, however, a parsed line may match the regex, but if it doesn't have at least one of a comment
+  # start or a comment end and at least one of a section start or a section end, it will be assumed
+  # that it is a line which was not intended to be parsed as a Regenerate command.)
   class ParsedRegenerateCommentLine
     
-    attr_reader :isInstanceVar, :hasCommentStart, :hasCommentEnd, :sectionStart, :sectionEnd
-    attr_reader :isEmptySection, :line, :name, :value
+    attr_reader :line             # The full text line matched against
+    attr_reader :isInstanceVar    # Is there an associated page object instance variable?
+    attr_reader :hasCommentStart  # Does this command include the start of an HTML comment?
+    attr_reader :hasCommentEnd    # Does this command include the end of an HTML comment?
+    attr_reader :sectionStart     # Does this command include a section start indicator, i.e. "[" ?
+    attr_reader :sectionEnd       # Does this command include a section start indicator, i.e. "]" ?
+    attr_reader :isEmptySection   # Does this represent an empty section, because it starts and ends the same section?
+    attr_reader :name             # The instance variable name (@something) or special command name ("ruby" or "class")
+    attr_reader :value            # The optional value associated with a special command
     
     def initialize(line, match)
       @hasCommentStart = match[1] != ""
@@ -244,40 +267,51 @@ module Regenerate
       @isEmptySection = @sectionStart && @sectionEnd
     end
     
+    # Reconstruct a line which would re-parse the same (but possibly with reduced whitespace)
     def to_s
       "#{@hasCommentStart ? "<!-- ":""}#{@sectionStart ? "[ ":""}#{@isInstanceVar ? "@ ":""}#{@name.inspect}#{@value ? " "+@value:""}#{@sectionEnd ? " ]":""}#{@hasCommentEnd ? " -->":""}"
     end
     
+    # Is this line recognised as a Regenerate comment line command?
     def isRegenerateCommentLine
       return (@hasCommentStart || @hasCommentEnd) && (@sectionStart || @sectionEnd)
     end
     
+    # Does this command start a Ruby page component (because it has special command name "ruby")?
     def isRuby
       !@isInstanceVar && @name == "ruby"
     end
     
+    # The name of the associated instance variable (assuming there is one)
     def instanceVarName
       return @name
     end
     
+    # Raise a parse exception due to an error within this command line
     def raiseParseException(message)
       raise ParseException.new("Error parsing line #{@line.inspect}: #{message}")
     end
     
-    # only call this method if isRegenerateCommentLine returns true
+    # only call this method if isRegenerateCommentLine returns true - in other words, if it looks like
+    # it was intended to be a Regenerate comment line command, check that it is valid.
     def checkIsValid
+      # The "name" value has to be an instance variable name or "ruby" or "class"
       if !@isInstanceVar and !["ruby", "class"].include?(@name)
         raiseParseException("Unknown section name #{@name.inspect}")
       end
+      # An empty section has to be a self-contained comment line
       if @isEmptySection and (!@hasCommentStart && !@hasCommentEnd)
         raiseParseException("Empty section, but is not a closed comment")
       end
+      # If it's not a section start, it has to be a section end, so there has to be a comment end
       if !@sectionStart && !@hasCommentEnd
         raiseParseException("End of section in comment start")
       end
+      # If it's not a section end, it has to be a section start, so there has to be a comment start
       if !@sectionEnd && !@hasCommentStart
         raiseParseException("Start of section in comment end")
       end
+      # Empty Ruby page components aren't allowed.
       if (@sectionStart && @sectionEnd) && isRuby
         raiseParseException("Empty ruby section")
       end
@@ -295,7 +329,7 @@ module Regenerate
     
     include Regenerate::Utils
     
-    attr_reader :fileName
+    attr_reader :fileName # The absolute name of the source file
     
     def initialize(fileName)
       @fileName = fileName
@@ -303,7 +337,7 @@ module Regenerate
       @currentComponent = nil
       @componentInstanceVariables = {}
       initializePageObject(PageObject.new)  # default, can be overridden by SetPageObjectClass
-      @pageObjectClassNameSpecified = nil
+      @pageObjectClassNameSpecified = nil # remember name if we have specified a page object class to override the default
       @rubyComponents = []
       readFileLines
     end
@@ -313,6 +347,12 @@ module Regenerate
     # Three special instance variable values are set - @fileName, @baseDir, @baseFileName, 
     # so that they can be accessed, if necessary, by Ruby code in the Ruby code components.
     # (if this is called a second time, it overrides whatever was set the first time)
+    # Notes on special instance variables -
+    #  @fileName and @baseDir are the absolute paths of the source file and it's containing directory.
+    #  They would be used in Ruby code that looked for other files with names or locations relative to these two.
+    #  They would generally not be expected to appear in the output content.
+    #  @baseFileName is the name of the file without any directory path components. In some cases it might be 
+    #  used within output content.
     def initializePageObject(pageObject)
       @pageObject = pageObject
       setPageObjectInstanceVar("@fileName", @fileName)
@@ -321,28 +361,20 @@ module Regenerate
       @initialInstanceVariables = Set.new(@pageObject.instance_variables)
     end
     
+    # Get the value of an instance variable of the page object
     def getPageObjectInstanceVar(varName)
       @pageObject.instance_variable_get(varName)
     end
     
+    # Set the value of an instance variable of the page object
     def setPageObjectInstanceVar(varName, value)
       puts " setPageObjectInstanceVar, #{varName} = #{value.inspect}"
       @pageObject.instance_variable_set(varName, value)
     end
     
+    # Add a Ruby page component to this web page (so that later on it will be executed)
     def addRubyComponent(rubyComponent)
       @rubyComponents << rubyComponent
-    end
-    
-    def setInstanceVarValue(varName, value)
-      if @initialInstanceVariables.member? varName
-        raise Exception, "Instance variable #{varName} is a pre-existing instance variable"
-      end
-      if @componentInstanceVariables.member? varName
-        raise Exception, "Instance variable #{varName} is a already defined for a component"
-      end
-      instance_variable_set(varName, value)
-      componentInstanceVariables << varName
     end
     
     def startNewComponent(component, startComment = nil)
