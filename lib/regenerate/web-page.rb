@@ -377,8 +377,10 @@ module Regenerate
       @rubyComponents << rubyComponent
     end
     
+    # Add a newly started page component to this page
+    # Also process the start comment, unless it was a static HTML component, in which case there is 
+    # not start comment.
     def startNewComponent(component, startComment = nil)
-      
       component.parentPage = self
       @currentComponent = component
       #puts "startNewComponent, @currentComponent = #{@currentComponent.inspect}"
@@ -388,6 +390,8 @@ module Regenerate
       end
     end
     
+    # Process a text line, by adding to the current page component, or if there is none, starting a new
+    # StaticHtml component.
     def processTextLine(line, lineNumber)
       #puts "text: #{line}"
       if @currentComponent == nil
@@ -396,12 +400,15 @@ module Regenerate
       @currentComponent.addLine(line)
     end
     
+    # Get a Ruby class from a normal Ruby class name formatted using "::" separators
     def classFromString(str)
+      # Start with Object, and look up the module one path component at a time
       str.split('::').inject(Object) do |mod, class_name|
         mod.const_get(class_name)
       end
     end
     
+    # Set the page object to be an object with the specified class name (this can only be done once)
     def setPageObject(className)
       if @pageObjectClassNameSpecified
         raise ParseException("Page object class name specified more than once")
