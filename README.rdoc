@@ -1,0 +1,17 @@
+= regenerate
+
+*regenerate* is a Ruby gem for static website generation.
+
+It is currently used to generate websites at http://thinkinghard.com, http://whatismusic.info
+and http://digital-freedoms.org.
+
+Currently the most detailed description of the input format for HTML source files is
+in the comment block prior to the definition of *ParsedRegenerateCommentLine* in *lib/regenerate/web-page.rb*.
+
+== Test Code
+
+There is currently no test code in this project, _but_, there is an example snapshot
+of the http://thinkinghard.com website, together with instructions on how
+to regenerate the website (and verify that the correct output is generated). 
+Instructions for downloading and processing this snapshot can be found at 
+http://thinkinghard.com/software/regenerateAndPropolize/index.html.
