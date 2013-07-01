@@ -63,6 +63,8 @@ module Regenerate
     # Extensions for types of files to be generated/regenerated
     REGENERATE_EXTENSIONS = [".htm", ".html", ".xml"]
     
+    SOURCE_EXTENSIONS = {".css" => [".scss", ".sass"]}
+    
     # Copy a source file directly to an output file
     def copySrcToOutputFile(srcFile, outFile)
       makeBackupFile(outFile)
@@ -98,7 +100,21 @@ module Regenerate
       if REGENERATE_EXTENSIONS.include? extension
         raise "Regeneration from output not yet implemented."
       else
-        copySrcToOutputFile(outFile, srcFile)
+        okToCopyBack = true
+        if SOURCE_EXTENSIONS.has_key? extension
+          srcExtensions = SOURCE_EXTENSIONS[extension]
+          srcNameWithoutExtension = srcFile.chomp(extension)
+          possibleSrcFiles = srcExtensions.map{|srcExtension| srcNameWithoutExtension + srcExtension}
+          for possibleSrcFile in possibleSrcFiles
+            if File.exist? possibleSrcFile
+              puts "NOT COPYING #{outFile} back to source because source file #{possibleSrcFile} exists"
+              okToCopyBack = false
+            end
+          end
+        end
+        if okToCopyBack
+          copySrcToOutputFile(outFile, srcFile)
+        end
       end
     end
     
