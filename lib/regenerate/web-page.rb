@@ -331,12 +331,12 @@ module Regenerate
     
     attr_reader :fileName # The absolute name of the source file
     
-    def initialize(fileName)
+    def initialize(fileName, defaultPageObjectClass)
       @fileName = fileName
       @components = []
       @currentComponent = nil
       @componentInstanceVariables = {}
-      initializePageObject(PageObject.new)  # default, can be overridden by SetPageObjectClass
+      initializePageObject(defaultPageObjectClass.new)  # default, can be overridden by SetPageObjectClass
       @pageObjectClassNameSpecified = nil # remember name if we have specified a page object class to override the default
       @rubyComponents = []
       readFileLines

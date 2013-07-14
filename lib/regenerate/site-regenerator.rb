@@ -39,7 +39,7 @@ module Regenerate
 
     # Initialise giving base directory of project, and sub-directories for source and output
     # e.g. "/home/me/myproject", "src" and "output"
-    def initialize(baseDir, sourceSubDir, outputSubDir)
+    def initialize(baseDir, sourceSubDir, outputSubDir, defaultPageObjectClass = PageObject)
       @baseDir = File.expand_path(baseDir)
       @sourceSubDir = sourceSubDir
       @outputSubDir = outputSubDir
@@ -48,6 +48,7 @@ module Regenerate
         :output => File.join(@baseDir, @outputSubDir)}
       @oppositeSourceType = {:source => :output, :output => :source}
       @checkNoChanges = false
+      @defaultPageObjectClass = defaultPageObjectClass
       puts "SiteRegenerator initialized, @baseDir = #{@baseDir.inspect}"
     end
     
@@ -82,7 +83,7 @@ module Regenerate
       extension = File.extname(srcFile).downcase
       #puts "  extension = #{extension}"
       if REGENERATE_EXTENSIONS.include? extension
-        WebPage.new(srcFile).regenerateToOutputFile(outFile, checkNoChanges)
+        WebPage.new(srcFile, @defaultPageObjectClass).regenerateToOutputFile(outFile, checkNoChanges)
       else
         copySrcToOutputFile(srcFile, outFile)
       end
