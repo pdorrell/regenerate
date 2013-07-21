@@ -7,11 +7,11 @@ module Regenerate
     def makeBackupFile(outFile)
       backupFileName = outFile+"~"
       if File.exists? backupFileName
-        #puts " deleting existing backup file #{backupFileName} ..."
+        puts "BACKUP: deleting existing backup file #{backupFileName} ..."
         File.delete (backupFileName)
       end
       if File.exists? outFile
-        #puts " renaming file #{outFile} to #{backupFileName} ..."
+        puts "BACKUP: renaming file #{outFile} to #{backupFileName} ..."
         File.rename(outFile, backupFileName)
       end
       backupFileName

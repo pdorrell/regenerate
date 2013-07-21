@@ -36,6 +36,18 @@ module Regenerate
     # an option to check for changes and throw an error before an existing output file is changed
     # (use this option to test that certain changes in your code _don't_ change the result for your website)
     attr_accessor :checkNoChanges 
+    
+    # option to make backups
+    attr_accessor :makeBackups
+    
+    # option to specify extensions of files to copy
+    attr_accessor :copyExtensions
+    
+    # option to specify names of files to copy
+    attr_accessor :copyFileNames
+    
+    #option to specify sub-directories not to copy
+    attr_accessor :nonCopySubDirectories
 
     # Initialise giving base directory of project, and sub-directories for source and output
     # e.g. "/home/me/myproject", "src" and "output"
@@ -48,7 +60,11 @@ module Regenerate
         :output => File.join(@baseDir, @outputSubDir)}
       @oppositeSourceType = {:source => :output, :output => :source}
       @checkNoChanges = false
+      @makeBackups = false
       @defaultPageObjectClass = defaultPageObjectClass
+      @copyExtensions = [".html", ".css", ".txt", ".png", ".svg", ".js", ".gif", ".xml", ".htaccess", ".ico"]
+      @copyFileNames = [".htaccess"]
+      @nonCopySubDirectories = []
       puts "SiteRegenerator initialized, @baseDir = #{@baseDir.inspect}"
     end
     
@@ -67,25 +83,30 @@ module Regenerate
     SOURCE_EXTENSIONS = {".css" => [".scss", ".sass"]}
     
     # Copy a source file directly to an output file
-    def copySrcToOutputFile(srcFile, outFile)
-      makeBackupFile(outFile)
+    def copySrcToOutputFile(srcFile, outFile, makeBackup)
+      if makeBackup
+        makeBackupFile(outFile)
+      end
       FileUtils.cp(srcFile, outFile, :verbose => true)
     end
     
     # Generate an output file from a source file
     # (pathComponents represent the path from the root source directory to the actual file)
-    def regenerateFileFromSource(srcFile, pathComponents)
+    def regenerateFileFromSource(srcFile, pathComponents, makeBackup)
       #puts "regenerateFileFromSource, srcFile = #{srcFile}, pathComponents = #{pathComponents.inspect}"
       subPath = pathComponents.join("/")
       outFile = File.join(@sourceTypeDirs[:output], subPath)
       #puts "  outFile = #{outFile}"
       ensureDirectoryExists(File.dirname(outFile))
       extension = File.extname(srcFile).downcase
+      baseFileName = File.basename(srcFile)
       #puts "  extension = #{extension}"
       if REGENERATE_EXTENSIONS.include? extension
-        WebPage.new(srcFile, @defaultPageObjectClass).regenerateToOutputFile(outFile, checkNoChanges)
+        WebPage.new(srcFile, @defaultPageObjectClass, pathComponents).regenerateToOutputFile(outFile, checkNoChanges)
+      elsif @copyExtensions.include?(extension) || @copyFileNames.include?(baseFileName)
+        copySrcToOutputFile(srcFile, outFile, makeBackup)
       else
-        copySrcToOutputFile(srcFile, outFile)
+        puts "NOT COPYING file #{srcFile} (extension #{extension.inspect})"
       end
     end
     
@@ -114,13 +135,13 @@ module Regenerate
           end
         end
         if okToCopyBack
-          copySrcToOutputFile(outFile, srcFile)
+          copySrcToOutputFile(outFile, srcFile, true)
         end
       end
     end
     
     # Regenerate (or generate) a file, either from source file or from output file
-    def regenerateFile(srcFile, pathComponents, sourceType)
+    def regenerateFile(srcFile, pathComponents, sourceType, makeBackup)
       #puts "regenerateFile, srcFile = #{srcFile}, sourceType = #{sourceType.inspect}"
       outFile = File.join(@sourceTypeDirs[@oppositeSourceType[sourceType]], File.join(pathComponents))
       #puts " outFile = #{outFile}"
@@ -134,13 +155,13 @@ module Regenerate
       if sourceType == :output
         regenerateSourceFromOutput(srcFile, pathComponents)
       elsif sourceType == :source
-        regenerateFileFromSource(srcFile, pathComponents)
+        regenerateFileFromSource(srcFile, pathComponents, makeBackup)
       end
     end
     
     # Regenerate (or generated) specified sub-directory or file in sub-directory
     # of source or output root directory (according to sourceType)
-    def regenerateSubPath(pathComponents, sourceType)
+    def regenerateSubPath(pathComponents, sourceType, makeBackup)
       #puts "regenerateSubPath, pathComponents = #{pathComponents.inspect}, sourceType = #{sourceType.inspect}"
       srcPath = File.join(@sourceTypeDirs[sourceType], File.join(pathComponents))
       #puts " srcPath = #{srcPath}"
@@ -148,12 +169,16 @@ module Regenerate
         for entry in Dir.entries(srcPath) do
           if ![".", ".."].include? entry
             if !entry.start_with?("_")
-              regenerateSubPath(pathComponents + [entry], sourceType)
+              if @nonCopySubDirectories.include? entry
+                puts "NOT COPYING files from #{srcPath} with non-copy sub-directory #{entry.inspect}"
+              else
+                regenerateSubPath(pathComponents + [entry], sourceType, makeBackup)
+              end
             end
           end
         end
       elsif File.file? (srcPath)
-        regenerateFile(srcPath, pathComponents, sourceType)
+        regenerateFile(srcPath, pathComponents, sourceType, makeBackup)
       end
     end
     
@@ -165,16 +190,26 @@ module Regenerate
       relativePath = Pathname.new(path).relative_path_from(Pathname.new(@baseDir))
       #puts " relativePath = #{relativePath}"
       relativePathComponents = relativePath.to_s.split("/")
-      puts " relativePathComponents = #{relativePathComponents.inspect}"
+      #puts " relativePathComponents = #{relativePathComponents.inspect}"
       subDir = relativePathComponents[0]
       relativeSubDirPathComponents = relativePathComponents[1..-1]
-      checkNotSourceOnly(relativeSubDirPathComponents)
-      if subDir == @sourceSubDir
-        regenerateSubPath(relativeSubDirPathComponents, :source)
-      elsif subDir == @outputSubDir
-        regenerateSubPath(relativeSubDirPathComponents, :output)
-      else
-        raise "Path #{path} to regenerate is not contained in #{@sourceSubDir} (source) or #{@outputSubDir} (output) sub-directory of base dir #{@baseDir}"
+      foundNonCopySubDirectory = false
+      for pathComponent in relativeSubDirPathComponents do
+        if !foundNonCopySubDirectory && @nonCopySubDirectories.include?(pathComponent)
+          puts "NOT COPYING files from #{relativeSubDirPathComponents.join('/')} " + 
+            "with non-copy sub-directory #{pathComponent.inspect}"
+          foundNonCopySubDirectory = true
+        end
+      end
+      if !foundNonCopySubDirectory
+        checkNotSourceOnly(relativeSubDirPathComponents)
+        if subDir == @sourceSubDir
+          regenerateSubPath(relativeSubDirPathComponents, :source, makeBackups)
+        elsif subDir == @outputSubDir
+          regenerateSubPath(relativeSubDirPathComponents, :output, makeBackups)
+        else
+          raise "Path #{path} to regenerate is not contained in #{@sourceSubDir} (source) or #{@outputSubDir} (output) sub-directory of base dir #{@baseDir}"
+        end
       end
     end
     
@@ -182,12 +217,9 @@ module Regenerate
   
   # Searching upwards from the current directory, find a file ".regenerate.rb" in the root directory of the project
   def self.findRegenerateScript(path, fileName)
-    puts "Find regenerate script ..."
     for dir in PathAndParents.new(path) do
       scriptFileName = File.join(dir, fileName)
-      puts " looking for #{scriptFileName} ..."
       if File.exists?(scriptFileName)
-        puts " FOUND #{scriptFileName}"
         return scriptFileName
       end
     end

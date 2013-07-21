@@ -331,8 +331,9 @@ module Regenerate
     
     attr_reader :fileName # The absolute name of the source file
     
-    def initialize(fileName, defaultPageObjectClass)
+    def initialize(fileName, defaultPageObjectClass, pathComponents)
       @fileName = fileName
+      @pathComponents = pathComponents
       @components = []
       @currentComponent = nil
       @componentInstanceVariables = {}
@@ -358,7 +359,10 @@ module Regenerate
       setPageObjectInstanceVar("@fileName", @fileName)
       setPageObjectInstanceVar("@baseDir", File.dirname(@fileName))
       setPageObjectInstanceVar("@baseFileName", File.basename(@fileName))
+      setPageObjectInstanceVar("@rootLinkPath", "../" * (@pathComponents.length-1))
+      setPageObjectInstanceVar("@pathDepth", @pathComponents.length-1)
       @initialInstanceVariables = Set.new(@pageObject.instance_variables)
+      pageObject.postInitialize
     end
     
     # Get the value of an instance variable of the page object
@@ -506,8 +510,11 @@ module Regenerate
     
     # Write the output of the page components to the output file (optionally checking that 
     # there are no differences between the new output and the existing output.
-    def writeRegeneratedFile(outFile, checkNoChanges)
-      backupFileName = makeBackupFile(outFile)
+    def writeRegeneratedFile(outFile, makeBackup, checkNoChanges)
+      puts "writeRegeneratedFile, #{outFile}, makeBackup = #{makeBackup}, checkNoChanges = #{checkNoChanges}"
+      if makeBackup
+        backupFileName = makeBackupFile(outFile)
+      end
       File.open(outFile, "w") do |f|
         for component in @components do
           f.write(component.output)
@@ -515,6 +522,9 @@ module Regenerate
       end
       puts " wrote regenerated page to #{outFile}"
       if checkNoChanges
+        if !makeBackup
+          raise Exception.new("writeRegeneratedFile #{outFile}: checkNoChanges specified, but no backup was made")
+        end
         checkAndEnsureOutputFileUnchanged(outFile, backupFileName)
       end
     end
@@ -549,14 +559,16 @@ module Regenerate
     # Regenerate the source file (in-place)
     def regenerate
       executeRubyComponents
-      writeRegeneratedFile(@fileName)
+      @pageObject.process
+      writeRegeneratedFile(@fileName, true)
       #display
     end
     
     # Regenerate from the source file into the output file
     def regenerateToOutputFile(outFile, checkNoChanges = false)
       executeRubyComponents
-      writeRegeneratedFile(outFile, checkNoChanges)
+      @pageObject.process
+      writeRegeneratedFile(outFile, checkNoChanges, checkNoChanges)
     end
     
     # Execute the Ruby components which consist of Ruby code to be evaluated in the context of the page object
@@ -591,6 +603,11 @@ module Regenerate
   class PageObject
     include Regenerate::Utils
     
+    # Over-ride this method to do any initialisation at the end of 
+    # the parent WebPage object calling initializePageObject
+    def postInitialize
+    end
+    
     # Method to render an ERB template file in the context of this object
     def erb(templateFileName)
       @binding = binding
@@ -612,6 +629,10 @@ module Regenerate
     # Calculate absolute path given path relative to the directory containing the source file for the web page
     def relative_path(path)
       File.expand_path(File.join(@baseDir, path.to_str))
+    end
+    
+    def relativePathToLevel(level)
+      "../" * (@pathDepth-level)
     end
 
     # Require a Ruby file given a path relative to the web page source file.
