@@ -611,7 +611,11 @@ module Regenerate
     # Method to render an ERB template file in the context of this object
     def erb(templateFileName)
       @binding = binding
-      File.open(relative_path(templateFileName), "r") do |input|
+      if @templatePath
+        templateFileName = @templatePath + templateFileName
+      end
+      fullTemplateFilePath = relative_path(templateFileName)
+      File.open(fullTemplateFilePath, "r") do |input|
         templateText = input.read
         template = ERB.new(templateText, nil, nil)
         template.filename = templateFileName
