@@ -112,7 +112,11 @@ module Regenerate
     end
     
     def path_of_page(page_object)
-      @siteUrl + page_object.page_path
+      page_path = page_object.page_path
+      if page_path.end_with? 'index.html'
+        page_path = page_path[0, page_path.length - 10]
+      end
+      @siteUrl + page_path
     end
     
     # Generate a source file from an output file (if that can be done)
