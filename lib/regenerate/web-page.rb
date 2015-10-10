@@ -331,7 +331,8 @@ module Regenerate
     
     attr_reader :fileName # The absolute name of the source file
     
-    def initialize(fileName, defaultPageObjectClass, pathComponents)
+    def initialize(site, fileName, defaultPageObjectClass, pathComponents)
+      @site = site
       @fileName = fileName
       @pathComponents = pathComponents
       @components = []
@@ -356,11 +357,16 @@ module Regenerate
     #  used within output content.
     def initializePageObject(pageObject)
       @pageObject = pageObject
+      pathDepth = @pathComponents.length-1
+      rootLinkPath = "../" * pathDepth
       setPageObjectInstanceVar("@fileName", @fileName)
       setPageObjectInstanceVar("@baseDir", File.dirname(@fileName))
       setPageObjectInstanceVar("@baseFileName", File.basename(@fileName))
-      setPageObjectInstanceVar("@rootLinkPath", "../" * (@pathComponents.length-1))
-      setPageObjectInstanceVar("@pathDepth", @pathComponents.length-1)
+      setPageObjectInstanceVar("@pathDepth", pathDepth)
+      setPageObjectInstanceVar("@pathComponents", @pathComponents)
+      setPageObjectInstanceVar("@rootLinkPath", rootLinkPath)
+      setPageObjectInstanceVar("@baseUrl", rootLinkPath)
+      setPageObjectInstanceVar("@site", @site)
       @initialInstanceVariables = Set.new(@pageObject.instance_variables)
       pageObject.postInitialize
     end
@@ -611,10 +617,7 @@ module Regenerate
     # Method to render an ERB template file in the context of this object
     def erb(templateFileName)
       @binding = binding
-      if @templatePath
-        templateFileName = @templatePath + templateFileName
-      end
-      fullTemplateFilePath = relative_path(templateFileName)
+      fullTemplateFilePath = relative_path(@rootLinkPath + templateFileName)
       File.open(fullTemplateFilePath, "r") do |input|
         templateText = input.read
         template = ERB.new(templateText, nil, nil)
@@ -637,6 +640,16 @@ module Regenerate
     
     def relativePathToLevel(level)
       "../" * (@pathDepth-level)
+    end
+    
+    # Path of this page, relative to the base URL for the site
+    def page_path
+      return @pathComponents.join('/')
+    end
+    
+    # Full URL to access this page
+    def full_url
+      return @site.path_of_page(self)
     end
 
     # Require a Ruby file given a path relative to the web page source file.

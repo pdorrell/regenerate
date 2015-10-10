@@ -51,7 +51,8 @@ module Regenerate
 
     # Initialise giving base directory of project, and sub-directories for source and output
     # e.g. "/home/me/myproject", "src" and "output"
-    def initialize(baseDir, sourceSubDir, outputSubDir, defaultPageObjectClass = PageObject)
+    def initialize(siteUrl, baseDir, sourceSubDir, outputSubDir, defaultPageObjectClass = PageObject)
+      @siteUrl = siteUrl
       @baseDir = File.expand_path(baseDir)
       @sourceSubDir = sourceSubDir
       @outputSubDir = outputSubDir
@@ -102,12 +103,16 @@ module Regenerate
       baseFileName = File.basename(srcFile)
       #puts "  extension = #{extension}"
       if REGENERATE_EXTENSIONS.include? extension
-        WebPage.new(srcFile, @defaultPageObjectClass, pathComponents).regenerateToOutputFile(outFile, checkNoChanges)
+        WebPage.new(self, srcFile, @defaultPageObjectClass, pathComponents).regenerateToOutputFile(outFile, checkNoChanges)
       elsif @copyExtensions.include?(extension) || @copyFileNames.include?(baseFileName)
         copySrcToOutputFile(srcFile, outFile, makeBackup)
       else
         puts "NOT COPYING file #{srcFile} (extension #{extension.inspect})"
       end
+    end
+    
+    def path_of_page(page_object)
+      @siteUrl + page_object.page_path
     end
     
     # Generate a source file from an output file (if that can be done)
